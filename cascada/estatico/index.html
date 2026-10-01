@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cascada en vivo</title>
+<script src="/estatico/chart.umd.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#17202a;--mu:#6b7785;--bd:#e3e7ec;--ac:#2563eb;--ok:#15803d;--ko:#b91c1c;--wa:#b45309;--chip:#eef2f7}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1318;--card:#171c23;--tx:#e6e9ee;--mu:#93a0ae;--bd:#27303a;--ac:#60a5fa;--ok:#4ade80;--ko:#f87171;--wa:#fbbf24;--chip:#202833}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--bd);padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:17px;margin:0}.est{font-size:12px;padding:3px 8px;border-radius:99px;background:var(--chip)}
+nav{display:flex;gap:4px;overflow-x:auto;padding:8px 16px;background:var(--card);border-bottom:1px solid var(--bd)}
+nav button{border:0;background:none;color:var(--mu);padding:6px 10px;border-radius:8px;font:inherit;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--chip);color:var(--tx);font-weight:600}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.k .l{color:var(--mu);font-size:12px}.k .v{font-size:20px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+.pos{color:var(--ok)}.neg{color:var(--ko)}.mu{color:var(--mu)}
+h2{font-size:15px;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+th{color:var(--mu);font-weight:500;font-size:12px}td.n,th.n{text-align:right}
+.tw{overflow-x:auto}.sec{display:none}.sec.on{display:block}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.btns button,.b{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:5px 10px;border-radius:8px;cursor:pointer;font:inherit}
+.btns button.on{border-color:var(--ac);color:var(--ac)}
+.tag{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--chip)}
+.critica,.alta{color:var(--ko)}.media{color:var(--wa)}.baja{color:var(--mu)}
+canvas{max-height:320px}.two{display:grid;gap:12px;grid-template-columns:1fr}@media(min-width:900px){.two{grid-template-columns:1fr 1fr}}
+.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:6px}.cal div{padding:8px;border-radius:8px;text-align:center;font-size:12px}
+</style>
+</head>
+<body>
+<header><h1>Cascada</h1><span id="modo" class="est"></span><span id="vivo" class="est"></span><span id="flags"></span>
+<span style="flex:1"></span><button class="b" id="bp" onclick="cmd('pausar')">Pausar</button><button class="b" onclick="cmd('reanudar')">Reanudar</button></header>
+<nav id="nav"></nav>
+<main>
+<section class="sec on" id="s-resumen">
+  <div class="grid" id="kpis"></div>
+  <div class="card"><div class="btns" id="rangos"></div><canvas id="cEq"></canvas></div>
+  <div class="two"><div class="card"><h2>Caída desde el máximo</h2><canvas id="cDD"></canvas></div>
+  <div class="card"><h2>Capital por estrategia (último ciclo)</h2><canvas id="cAs"></canvas></div></div>
+</section>
+<section class="sec" id="s-posiciones"><div class="card"><h2>Posiciones abiertas</h2><div class="tw" id="tPos"></div></div></section>
+<section class="sec" id="s-operaciones">
+  <div class="card"><div class="btns" id="fEst"></div><h2>Lotes cerrados</h2><div class="tw" id="tLot"></div></div>
+  <div class="card"><h2>Órdenes</h2><div class="tw" id="tOps"></div></div>
+</section>
+<section class="sec" id="s-rendimiento">
+  <div class="card"><h2>Mensual</h2><div class="cal" id="calM"></div></div>
+  <div class="two"><div class="card"><h2>Semanal</h2><div class="tw" id="tSem"></div></div><div class="card"><h2>Diario</h2><div class="tw" id="tDia"></div></div></div>
+</section>
+<section class="sec" id="s-estrategias"><div class="card"><h2>Por estrategia</h2><div class="tw" id="tEst"></div></div></section>
+<section class="sec" id="s-incidencias">
+  <div class="card"><h2>Posibles incidencias próximas</h2><div id="lPrev"></div></div>
+  <div class="card"><h2>Incidencias</h2><div class="tw" id="tInc"></div></div>
+</section>
+<section class="sec" id="s-backtest">
+  <div class="card"><h2>En vivo contra el backtest del nivel</h2><p class="mu" id="bandaTxt"></p><canvas id="cCmp"></canvas></div>
+  <div class="card"><h2>Backtest 2019 → sep 2026 por nivel (escala log)</h2><canvas id="cNiv"></canvas><div class="tw" id="tBt"></div></div>
+  <div class="card"><h2>Estrategias por separado (escala log)</h2><canvas id="cBEst"></canvas></div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const pc=(x,d=1)=>x==null?'—':(x*100).toFixed(d)+'%';
+const sp=(x,d=1)=>x==null?'—':`<span class="${x>=0?'pos':'neg'}">${x>=0?'+':''}${(x*100).toFixed(d)}%</span>`;
+const us=(x,d=2)=>x==null?'—':Number(x).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const px=x=>x==null?'—':Number(x).toPrecision(6).replace(/\.?0+$/,'');
+const NOM={ab_cortos:'Cortos Aberration',mom_alts:'Momentum alts (c40)',balas5:'30 balas 5x',rsi2_btc:'RSI(2) BTC',wr2:'WR2 BTC',sold_btc:'Soldados BTC',rsi2_eth:'RSI(2) ETH'};
+const SECS=[['resumen','Resumen'],['posiciones','Posiciones'],['operaciones','Operaciones'],['rendimiento','Rendimiento'],['estrategias','Estrategias'],['incidencias','Incidencias'],['backtest','Backtest']];
+let charts={},rango='30d',filtro=null,btCargado=false,ultimo=null;
+$('nav').innerHTML=SECS.map(([k,n],i)=>`<button data-s="${k}" class="${i?'':'on'}">${n}</button>`).join('');
+$('nav').onclick=e=>{const s=e.target.dataset.s;if(!s)return;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.s==s));
+ document.querySelectorAll('.sec').forEach(x=>x.classList.toggle('on',x.id=='s-'+s));if(s=='backtest')backtest();if(s=='operaciones')operaciones();};
+$('rangos').innerHTML=[['7d','7 días'],['30d','30 días'],['90d','90 días'],['365d','1 año'],['todo','Todo']].map(([k,n])=>`<button data-r="${k}" class="${k==rango?'on':''}">${n}</button>`).join('');
+$('rangos').onclick=e=>{if(!e.target.dataset.r)return;rango=e.target.dataset.r;document.querySelectorAll('#rangos button').forEach(b=>b.classList.toggle('on',b.dataset.r==rango));patrimonio();};
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COL=['#2563eb','#16a34a','#dc2626','#9333ea','#ea580c','#0891b2','#ca8a04','#64748b'];
+function chart(id,cfg){if(charts[id])charts[id].destroy();Chart.defaults.color=css('--mu');Chart.defaults.borderColor=css('--bd');charts[id]=new Chart($(id),cfg);}
+const linea=(lab,data,c,extra={})=>({label:lab,data,borderColor:c,backgroundColor:c,pointRadius:0,borderWidth:1.6,tension:.1,...extra});
+async function j(u,o){const r=await fetch(u,o);if(!r.ok)throw new Error(r.status);return r.json();}
+function tabla(cols,filas){if(!filas||!filas.length)return '<p class="mu">Sin datos todavía.</p>';return `<table><tr>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr>${filas.map(f=>`<tr>${cols.map(c=>`<td class="${c[2]||''}">${c[1](f)}</td>`).join('')}</tr>`).join('')}</table>`;}
+
+async function todo(){
+ const d=await j('/api/todo');ultimo=d;const k=d.kpis;
+ $('modo').textContent=`${k.modo=='real'?'REAL':'Papel'} · ${k.nivel||''}`;
+ const lat=k.latido?Math.round(d.ahora-k.latido):null;$('vivo').innerHTML=lat!=null&&lat<120?'<span class="pos">● en marcha</span>':'<span class="neg">● sin latido</span>';
+ $('flags').innerHTML=(k.pausado?'<span class="tag media">PAUSADO</span> ':'')+(k.bloqueado?'<span class="tag critica">BLOQUEADO POR CORTE</span> ':'')+(k.conciliacion_ok?'':'<span class="tag alta">CONCILIACIÓN</span>');
+ const K=[['Patrimonio',us(k.patrimonio)+' <span class="mu" style="font-size:12px">USDT</span>'],['Hoy',sp(k.rend_hoy,2)],['Semana',sp(k.rend_semana)],['Mes',sp(k.rend_mes)],
+  ['Total',sp(k.rend_total)],['CAGR',k.cagr==null?'<span class="mu">(desde 60 días)</span>':sp(k.cagr)],['Caída actual',sp(k.caida_actual)],['Caída máxima',sp(k.caida_max)],
+  ['Alerta / corte',`${pc(-k.alerta,0)} / ${pc(-k.corte,0)}`],['Sharpe',k.sharpe==null?'—':k.sharpe.toFixed(2)],['Principal / balas',`${us(k.principal,0)} / ${us(k.balas,0)}`],['Último ciclo',(k.ultimo_ciclo||'—').slice(5,16)]];
+ $('kpis').innerHTML=K.map(([l,v])=>`<div class="card k"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+ const P=d.posiciones;
+ $('tPos').innerHTML=P.length?tabla([['Estrategia',p=>NOM[p.estrategia]||p.estrategia],['Símbolo',p=>p.simbolo],['Lado',p=>p.lado],['Nocional',p=>us(p.nocional,0),'n'],['Entrada',p=>px(p.entrada),'n'],['Precio',p=>px(p.precio),'n'],['Stop',p=>px(p.stop),'n'],['Resultado',p=>us(p.pnl),'n'],['%',p=>sp(p.pnl_pct),'n'],['Desde',p=>(p.abierto||'').slice(0,16).replace('T',' ')],['',p=>p.extra?`balas ${p.extra.balas_usadas}/30 · liq. a ${pc(p.extra.dist_liquidacion)}${p.extra.reserva?' · reserva usada':''}`:'']],P):'<p class="mu">Sin posiciones.</p>';
+ const E=d.estrategias,ks=d.prioridad;
+ $('tEst').innerHTML=tabla([['Estrategia',s=>NOM[s]||s],['Peso',s=>pc(d.pesos[s]),'n'],['Pedido',s=>pc(E[s]?.pedido),'n'],['Concedido',s=>pc(E[s]?.concedido),'n'],['Lotes',s=>E[s]?.lotes??0,'n'],['Abiertos',s=>E[s]?.abiertos??0,'n'],['Ganadoras',s=>pc(E[s]?.ganadoras,0),'n'],['Resultado USDT',s=>us(E[s]?.pnl),'n'],['Medio',s=>us(E[s]?.pnl_medio),'n']],ks);
+ chart('cAs',{type:'bar',data:{labels:ks.map(s=>NOM[s]||s),datasets:[{label:'Pedido',data:ks.map(s=>(E[s]?.pedido||0)*100),backgroundColor:'#94a3b8'},{label:'Concedido',data:ks.map(s=>(E[s]?.concedido||0)*100),backgroundColor:COL[0]}]},options:{indexAxis:'y',scales:{x:{ticks:{callback:v=>v+'%'}}}}});
+ const pr=d.previsiones;$('lPrev').innerHTML=pr.length?pr.map(p=>`<p><span class="tag ${p.nivel}">${p.nivel}</span> ${p.mensaje}</p>`).join(''):'<p class="mu">Nada previsto.</p>';
+ $('tInc').innerHTML=tabla([['Fecha',x=>x.fecha],['Nivel',x=>`<span class="${x.nivel}">${x.nivel}</span>`],['Tipo',x=>x.tipo],['Mensaje',x=>`<span style="white-space:normal">${x.mensaje}</span>`],['Estado',x=>x.resuelta?'<span class="mu">resuelta</span>':'<b>abierta</b>']],d.incidencias);
+ const R=d.rendimientos;
+ $('calM').innerHTML=R.mensual.map(r=>{const a=Math.min(Math.abs(r.rend)/0.1,1)*.55;return `<div style="background:${r.rend>=0?`rgba(22,163,74,${a})`:`rgba(220,38,38,${a})`}"><div class="mu">${r.periodo}</div><b>${(r.rend*100).toFixed(1)}%</b></div>`}).join('')||'<p class="mu">Sin datos.</p>';
+ $('tSem').innerHTML=tabla([['Semana que termina',r=>r.periodo],['Rendimiento',r=>sp(r.rend,2),'n']],R.semanal.slice(0,52));
+ $('tDia').innerHTML=tabla([['Día',r=>r.periodo],['Rendimiento',r=>sp(r.rend,2),'n']],R.diario.slice(0,90));
+}
+async function patrimonio(){
+ const d=await j('/api/patrimonio?rango='+rango);
+ chart('cEq',{type:'line',data:{labels:d.total.t,datasets:[linea('Total',d.total.v,COL[0]),linea('Principal',d.principal.v,COL[1],{borderWidth:1}),linea('30 balas',d.balas.v,COL[4],{borderWidth:1})]},options:{interaction:{mode:'index',intersect:false},scales:{x:{ticks:{maxTicksLimit:8}}}}});
+ if(d.caida)chart('cDD',{type:'line',data:{labels:d.caida.t,datasets:[linea('Caída',d.caida.v.map(x=>x*100),COL[2],{fill:true,backgroundColor:'rgba(220,38,38,.15)'})]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksLimit:6}},y:{ticks:{callback:v=>v+'%'}}}}});
+}
+async function operaciones(){
+ const d=await j('/api/operaciones?limite=400'+(filtro?'&estrategia='+filtro:''));
+ const ks=['todas',...Object.keys(NOM)];$('fEst').innerHTML=ks.map(k=>`<button data-e="${k}" class="${(filtro||'todas')==k?'on':''}">${k=='todas'?'Todas':NOM[k]}</button>`).join('');
+ $('fEst').onclick=e=>{if(!e.target.dataset.e)return;filtro=e.target.dataset.e=='todas'?null:e.target.dataset.e;operaciones();};
+ $('tLot').innerHTML=tabla([['Cerrado',L=>L.cerrado],['Estrategia',L=>NOM[L.estrategia]||L.estrategia],['Símbolo',L=>L.simbolo],['Lado',L=>L.lado>0?'largo':'corto'],['Entrada',L=>px(L.precio_entrada),'n'],['Salida',L=>px(L.precio_salida),'n'],['Resultado',L=>us(L.pnl),'n'],['%',L=>sp(L.pnl_pct),'n'],['Motivo',L=>L.motivo_salida],['Abierto',L=>L.abierto]],d.lotes);
+ $('tOps').innerHTML=tabla([['Fecha',o=>o.fecha],['Cuenta',o=>o.cuenta],['Estrategia',o=>NOM[o.estrategia]||o.estrategia],['Símbolo',o=>o.simbolo],['Lado',o=>o.lado],['Contratos',o=>px(o.contratos),'n'],['Precio',o=>px(o.precio),'n'],['Nocional',o=>us(o.nocional,0),'n'],['Comisión',o=>us(o.comision,3),'n'],['Motivo',o=>o.motivo],['Modo',o=>o.modo]],d.operaciones);
+}
+async function backtest(){
+ const c=await j('/api/comparacion');const C=c.comparacion||{};const b=c.banda;
+ $('bandaTxt').innerHTML=b?`Para ${b.dias} días, el backtest de ${c.nivel} dio entre ${sp(b.rend.p5)} y ${sp(b.rend.p95)} (mediana ${sp(b.rend.p50)}), con caída máxima típica ${pc(b.caida.p50)} y 5 % de los casos peor que ${pc(b.caida.p5)}. La curva en vivo debería moverse dentro de la banda.`:'Hace falta más historia en vivo para comparar.';
+ if(C.vivo){const ds=[linea('En vivo',C.vivo,COL[0],{borderWidth:2.2})];if(C.p50)ds.push(linea('Backtest mediana',C.p50,'#64748b',{borderDash:[4,4]}),linea('Backtest 95 %',C.p95,'#94a3b8',{borderWidth:1}),linea('Backtest 5 %',C.p5,'#94a3b8',{borderWidth:1,fill:'-1',backgroundColor:'rgba(148,163,184,.15)'}));
+  chart('cCmp',{type:'line',data:{labels:C.fechas,datasets:ds},options:{interaction:{mode:'index',intersect:false}}});}
+ if(btCargado)return;const d=await j('/api/backtest');if(!d.fechas)return;btCargado=true;
+ const log={y:{type:'logarithmic'},x:{ticks:{maxTicksLimit:8}}};
+ chart('cNiv',{type:'line',data:{labels:d.fechas,datasets:Object.keys(d.niveles).map((k,i)=>linea(k.replace('techo_intrabarra_','techo ')+' %',d.niveles[k],COL[i]))},options:{scales:log,interaction:{mode:'index',intersect:false}}});
+ chart('cBEst',{type:'line',data:{labels:d.fechas,datasets:Object.keys(d.estrategias).map((k,i)=>linea(NOM[k]||k,d.estrategias[k],COL[i]))},options:{scales:log,interaction:{mode:'index',intersect:false}}});
+ const R=d.resumen,ks=Object.keys(R),años=Object.keys(R[ks[0]].anual);
+ $('tBt').innerHTML=tabla([['Nivel',k=>k.replace('techo_intrabarra_','techo ')+' %'],['CAGR',k=>sp(R[k].cagr),'n'],['Caída diaria',k=>pc(R[k].dd_diaria),'n'],['Caída intrabarra',k=>pc(R[k].dd_intrabarra),'n'],['Sharpe',k=>R[k].sharpe.toFixed(2),'n'],...años.map(a=>[a,k=>sp(R[k].anual[a],0),'n'])],ks);
+}
+async function cmd(n){if(n=='pausar'&&!confirm('¿Pausar? No se abren lotes nuevos; los abiertos siguen.'))return;
+ try{const r=await j('/api/comando',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:n})});alert(r.respuesta||r.error);todo();}catch(e){alert('Error: '+e.message);}}
+async function refrescar(){try{await todo();await patrimonio();}catch(e){console.error(e);}}
+refrescar();setInterval(refrescar,60000);
+</script>
+</body>
+</html>

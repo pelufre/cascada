@@ -1,0 +1,9 @@
+.env
+datos/
+__pycache__/
+*.pyc
+*.db
+*.db-*
+caddy_data/
+caddy_config/
+.git
