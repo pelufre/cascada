@@ -25,11 +25,12 @@ say "3/6 Archivo .env"
 if [ ! -f .env ]; then cp .env.ejemplo .env; fi
 chmod 600 .env
 if ! grep -q '^WEB_CLAVE=.\+' .env; then
-  CL=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
+  CL=$(openssl rand -hex 12)
   sed -i "s/^WEB_CLAVE=.*/WEB_CLAVE=$CL/" .env
 fi
 if ! grep -q '^DOMINIO=.\+' .env; then
-  IP=$(curl -fsS -4 https://ifconfig.me || hostname -I | awk '{print $1}')
+  IP=$(curl -fsS -4 --max-time 10 https://ifconfig.me || true)
+  [ -n "$IP" ] || IP=$(hostname -I | awk '{print $1}')
   sed -i "s/^DOMINIO=.*/DOMINIO=${IP//./-}.sslip.io/" .env
 fi
 mkdir -p datos caddy_data caddy_config
