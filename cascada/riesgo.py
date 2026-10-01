@@ -105,7 +105,7 @@ def previsiones(db, cfg, precios=None, funding=None, balas=None):
     bm = db.filas("SELECT mensaje FROM incidencias WHERE tipo='bajo_minimo' AND resuelta=0 ORDER BY id DESC LIMIT 1")
     if bm:
         out.append(("media", "bajo_minimo", bm[0]["mensaje"]))
-    hoy = pd.Timestamp.utcnow().tz_localize(None)
+    hoy = pd.Timestamp.now("UTC").tz_localize(None)
     dias = (6 - hoy.dayofweek) % 7
     if dias <= 1:
         out.append(("baja", "universo", "Cambio del top 50 el domingo: pueden entrar y salir candidatas de cortos y momentum"))

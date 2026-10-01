@@ -28,7 +28,7 @@ CONTROL_MIN = 15            # minutos entre controles de patrimonio y riesgo
 
 
 def _ahora():
-    return pd.Timestamp.utcnow().tz_localize(None)
+    return pd.Timestamp.now("UTC").tz_localize(None)
 
 
 def configurar_log():

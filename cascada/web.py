@@ -61,7 +61,7 @@ def datos_patrimonio(s, rango):
     desde = 0
     if rango != "todo":
         dias = int(rango.rstrip("d"))
-        desde = int((pd.Timestamp.utcnow().tz_localize(None) - pd.Timedelta(days=dias)).value // 10**6)
+        desde = int((pd.Timestamp.now("UTC").tz_localize(None) - pd.Timedelta(days=dias)).value // 10**6)
     out = {}
     for c in ("total", "principal", "balas"):
         x = ES.serie_patrimonio(db, c, desde)

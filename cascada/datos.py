@@ -38,7 +38,7 @@ class Datos:
     # ---------- universo ----------
     def actualizar_universo(self, api_key, ahora=None):
         """Guarda el top 50 del domingo. Si no hay ninguno guardado, toma el actual."""
-        ahora = pd.Timestamp(ahora or pd.Timestamp.utcnow().tz_localize(None))
+        ahora = pd.Timestamp(ahora or pd.Timestamp.now("UTC").tz_localize(None))
         domingo = (ahora.normalize() - pd.Timedelta(days=(ahora.dayofweek + 1) % 7)).strftime("%Y-%m-%d")
         if self.db.filas("SELECT 1 FROM universo WHERE fecha=? LIMIT 1", (domingo,)):
             return False
