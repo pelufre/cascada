@@ -19,6 +19,7 @@ from .datos import Datos
 from .db import Base
 from .motor import Motor
 from .telegram import AYUDA, Telegram
+from . import x as XM
 
 VERSION = "1.0.0"
 log = logging.getLogger("cascada")
@@ -49,6 +50,7 @@ class Sistema:
         self.tg = Telegram(cfg.telegram_token, cfg.telegram_chat)
         self.avisar = avisar or self.tg.avisar
         self.pub = publico or Publico()
+        self.x = XM.X(cfg.x, avisar=self.tg.avisar, max_dia=cfg.x_max_dia) if cfg.x_publicar else None
         self.datos = Datos(self.db, self.pub)
         w_bal = cfg.pesos.get("balas5", 0.0)
         if cfg.modo == "real":
@@ -120,6 +122,7 @@ class Sistema:
         if r.get("corte") and self.balas:
             self.balas.forzar_salida(t, precios.get("BTC"), "corte")
         self.previsiones(precios)
+        self.publicar_x(t)
         db.set("ultimo_ciclo_seg", round(time.time() - t0, 1))
         log.info("ciclo %s listo en %.0f s", t, time.time() - t0)
 
@@ -144,10 +147,34 @@ class Sistema:
             self.motor.cerrar_todo(t, "corte")
             if self.balas:
                 self.balas.forzar_salida(t, precios.get("BTC"), "corte")
+            self.publicar_x()
         elif er["alerta"]:
             if db.incidencia("alta", "alerta_caida", f"Caída desde el máximo {er['caida']:.1%} ≥ alerta {cfg.alerta_caida:.0%}"):
                 self.avisar("alta", f"Alerta: caída desde el máximo {er['caida']:.1%}")
         self.previsiones(precios)
+
+    def publicar_x(self, t=None, diario=False):
+        """Un post con lo ocurrido desde el último publicado (aperturas, cierres, stops, 30 balas)."""
+        if not self.x or not self.x.activo:
+            return
+        try:
+            ahora = int(time.time() * 1000) if t is None else int(pd.Timestamp(t).value // 10**6)
+            desde = self.db.get("x_ultimo_ms")
+            if desde is None:          # primera vez: no publica la historia previa
+                self.db.set("x_ultimo_ms", ahora)
+                return
+            k = ES.kpis(self.db, self.cfg)
+            if self.cfg.x_operaciones and ahora > desde:
+                txt = XM.texto_operaciones(self.db, self.cfg, desde, ahora, k)
+                if txt:
+                    self.x.publicar(txt)
+            self.db.set("x_ultimo_ms", max(ahora, desde))
+            if diario and self.cfg.x_resumen_diario:
+                txt = XM.texto_resumen_diario(self.db, self.cfg, k, t)
+                if txt:
+                    self.x.publicar(txt)
+        except Exception:
+            log.exception("publicar en X")
 
     def previsiones(self, precios):
         fund = {}
@@ -209,6 +236,7 @@ class Sistema:
             if self.balas:
                 self.balas.forzar_salida(t, self.pub.precios(["BTC"]).get("BTC"), "manual")
             db.set("pausado", True)
+            self.publicar_x()
             return "Cerré todo y quedó pausado. /reanudar para volver a operar."
         if nombre == "nivel":
             c = self.cfg
@@ -265,6 +293,7 @@ def main():
                     s.db.resolver("ciclo_fallido")
                     if t.hour == 0:
                         s.resumen_diario()
+                        s.publicar_x(t, diario=True)
                 except Exception as e:
                     fallos += 1
                     log.error("ciclo %s: %s", t, traceback.format_exc())

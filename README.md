@@ -92,6 +92,21 @@ Avisos de entradas, salidas, stops, alertas, incidencias previstas graves y un *
 Comandos: `/estado`, `/previsiones`, `/incidencias`, `/pausar`, `/reanudar`, `/cerrar_todo si`, `/nivel`, `/ayuda`.
 Sólo responde al chat configurado.
 
+## X (Twitter)
+
+Con `x_publicar: true` en `config/nivel.yaml`, cada ciclo de 4 h que tenga aperturas o cierres genera **un solo post**
+(qué abrió, qué cerró con su resultado y el acumulado desde el inicio), y a las 00:00 UTC un **resumen diario**. En modo
+papel cada post dice SIMULACIÓN. Sin enlaces: X cobra bastante más por post con enlace. Tope `x_max_dia` (12).
+
+1. Crear la cuenta en x.com y entrar a <https://developer.x.com> con ella. Crear un *Project* y una *App*.
+2. En la App → *User authentication settings*: permisos **Read and write** (tipo *Web App/Automated App*; como
+   Callback URL y Website se puede poner `https://<tu DOMINIO>`).
+3. En *Keys and tokens*: copiar **API Key** y **API Key Secret**, y generar **Access Token** y **Access Token Secret**
+   (generarlos *después* de poner Read and write; si no, quedan de sólo lectura).
+4. Cargar créditos en la consola de X (se cobra por post).
+5. Completar `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET` en `.env`, poner `x_publicar: true` y:
+   `docker compose up -d && docker compose exec cascada python -m cascada.cli x-prueba`
+
 ## Riesgo
 
 - Nocional total ≤ 1 × patrimonio (`tope_nocional`); si los precios lo empujan arriba de 1,05 ×, recorta desde la última

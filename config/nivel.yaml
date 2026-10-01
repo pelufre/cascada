@@ -16,3 +16,9 @@ apalancamiento_exchange: 3   # sólo el margen que KuCoin reserva por posición;
 # 30 balas en modo real: requiere la subcuenta con sus claves en .env. Mientras sea false, en real no opera.
 balas_real: false
 capital_balas_real: 0        # USD depositados en la subcuenta de balas al arrancar
+
+# X (Twitter): publica cada ciclo con operaciones (un post) y un resumen diario. X cobra por post.
+x_publicar: false
+x_operaciones: true
+x_resumen_diario: true
+x_max_dia: 12

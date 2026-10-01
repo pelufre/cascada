@@ -43,6 +43,11 @@ class Config:
     telegram_chat: str = ""
     web_usuario: str = "admin"
     web_clave: str = ""
+    x_publicar: bool = False               # publicar operaciones y resumen diario en X
+    x_operaciones: bool = True
+    x_resumen_diario: bool = True
+    x_max_dia: int = 12                     # tope de posts por día (X cobra por post)
+    x: dict = field(default_factory=dict)
     kucoin: dict = field(default_factory=dict)
     kucoin_balas: dict = field(default_factory=dict)
 
@@ -74,6 +79,8 @@ def cargar(ruta: str | Path | None = None) -> Config:
     c.telegram_chat = e.get("TELEGRAM_CHAT_ID", c.telegram_chat)
     c.web_usuario = e.get("WEB_USUARIO", c.web_usuario)
     c.web_clave = e.get("WEB_CLAVE", c.web_clave)
+    c.x = dict(api_key=e.get("X_API_KEY", ""), api_secret=e.get("X_API_SECRET", ""),
+               access_token=e.get("X_ACCESS_TOKEN", ""), access_secret=e.get("X_ACCESS_SECRET", ""))
     c.kucoin = dict(apiKey=e.get("KUCOIN_KEY", ""), secret=e.get("KUCOIN_SECRET", ""), password=e.get("KUCOIN_PASSPHRASE", ""))
     c.kucoin_balas = dict(apiKey=e.get("KUCOIN_BALAS_KEY", ""), secret=e.get("KUCOIN_BALAS_SECRET", ""),
                           password=e.get("KUCOIN_BALAS_PASSPHRASE", ""))

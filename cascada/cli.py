@@ -4,6 +4,7 @@
   estado               resumen como el de /estado
   aporte MONTO [nota]  registra un depósito (+) o retiro (−) para que no cuente como ganancia o caída
   reiniciar-papel      borra la base (sólo modo papel) para empezar de cero
+  x-prueba             comprueba las credenciales de X y publica un post de prueba
   telegram-chat        muestra el chat_id de quien le escribió al bot (para TELEGRAM_CHAT_ID)
 """
 import sys
@@ -63,6 +64,15 @@ def verificar():
             ok = False; print("✘ Telegram:", e)
     else:
         print("· Telegram sin configurar")
+    if cfg.x_publicar:
+        try:
+            from .x import X
+            u = X(cfg.x).yo()
+            print(f"✔ X: cuenta @{u['username']} (publica operaciones: {cfg.x_operaciones}, resumen diario: {cfg.x_resumen_diario})")
+        except Exception as e:
+            ok = False; print("✘ X:", getattr(e, "read", lambda: b"")().decode(errors="ignore")[:200] or e)
+    else:
+        print("· X apagado (x_publicar: false)")
     print("✔ Web con clave" if cfg.web_clave else "✘ Falta WEB_CLAVE")
     ok = ok and bool(cfg.web_clave)
     print("\nTODO BIEN" if ok else "\nHAY COSAS PARA CORREGIR")
@@ -76,6 +86,18 @@ def main(argv=None):
     cmd = a[0]
     if cmd == "verificar":
         sys.exit(0 if verificar() else 1)
+    if cmd == "x-prueba":
+        from .x import X
+        cfg = C.cargar(); x = X(cfg.x)
+        if not x.activo:
+            sys.exit("Faltan X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN o X_ACCESS_SECRET en .env")
+        try:
+            u = x.yo(); print(f"Credenciales OK: @{u['username']}")
+            r = x._post(f"Cascada: prueba de conexión ({time.strftime('%d/%m %H:%M', time.gmtime())} UTC)")
+            print("Publicado:", r["data"]["id"], "— podés borrarlo desde X")
+        except Exception as e:
+            sys.exit(f"Error: {getattr(e, 'code', '')} {getattr(e, 'read', lambda: str(e).encode())().decode(errors='ignore')[:400]}")
+        return
     if cmd == "telegram-chat":
         import json, urllib.request
         tok = C.cargar().telegram_token
