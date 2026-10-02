@@ -8,3 +8,4 @@
 | 2026-10-02 | Arreglo del motor de backtest: velas faltantes (E9) dejaban funding y caja en NaN; se valora con el último cierre. Sólo IS | este commit |
 | 2026-10-02 | Corridas IS de cada estrategia sola (corrida A, 2020-01-01 → 2023-12-31) | este commit |
 | 2026-10-02 | Arreglo de `pesos.verificar`: al escalar por 0,99 redondeaba hacia abajo a la grilla y cada peso perdía un paso de 0,025; ahora escala exacta (§5.4). Se descarta la corrida de selección interrumpida y se repite completa | este commit |
+| 2026-10-02 | Selección de pesos con IS (`elegir_pesos`, 1500 direcciones): 30 balas se queda (55,3 % vs 46,2 % en el nivel 20 %); pesos por nivel en resultados/seleccion_is.json | este commit |

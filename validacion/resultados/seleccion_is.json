@@ -1,0 +1,99 @@
+{
+ "protocolo": "validacion/PROTOCOLO.md §5",
+ "corrida": "A",
+ "tramo": "IS 2019-01-01 → 2023-12-31",
+ "decision_balas": {
+  "variantes": {
+   "balas5": {
+    "pesos": {
+     "ab_cortos": 0.275,
+     "mom_alts": 0.15000000000000002,
+     "balas5": 0.2,
+     "rsi2_btc": 0.07500000000000001,
+     "wr2": 0.0,
+     "sold_btc": 0.025,
+     "rsi2_eth": 0.07500000000000001
+    },
+    "tasa": 0.5525663337707485,
+    "p95": 0.1991764173093645
+   },
+   "btc_tend": {
+    "pesos": {
+     "ab_cortos": 0.175,
+     "mom_alts": 0.17500000000000002,
+     "btc_tend": 0.0,
+     "rsi2_btc": 0.25,
+     "wr2": 0.0,
+     "sold_btc": 0.05,
+     "rsi2_eth": 0.0
+    },
+    "tasa": 0.4623322778681569,
+    "p95": 0.19983549394041208
+   }
+  },
+  "elegida": "balas5",
+  "regla": "se queda balas5 sólo si supera a btc_tend por ≥ 1 punto anual en el nivel 20 % (IS)"
+ },
+ "niveles": {
+  "10": {
+   "pesos": {
+    "ab_cortos": 0.1175,
+    "mom_alts": 0.07050000000000001,
+    "balas5": 0.07050000000000001,
+    "rsi2_btc": 0.0,
+    "wr2": 0.0235,
+    "sold_btc": 0.047,
+    "rsi2_eth": 0.047
+   },
+   "tasa_is": 0.22227769999283287,
+   "p95_is": 0.09998278708665255,
+   "escala_verificacion": 0.94,
+   "caida_historica_pesimista_is": -0.07963392619629872
+  },
+  "20": {
+   "pesos": {
+    "ab_cortos": 0.2585,
+    "mom_alts": 0.14100000000000001,
+    "balas5": 0.188,
+    "rsi2_btc": 0.07050000000000001,
+    "wr2": 0.0,
+    "sold_btc": 0.0235,
+    "rsi2_eth": 0.07050000000000001
+   },
+   "tasa_is": 0.5142875649925931,
+   "p95_is": 0.19880417920108134,
+   "escala_verificacion": 0.94,
+   "caida_historica_pesimista_is": -0.16323470653726968
+  },
+  "25": {
+   "pesos": {
+    "ab_cortos": 0.3325,
+    "mom_alts": 0.21375,
+    "balas5": 0.2375,
+    "rsi2_btc": 0.0475,
+    "wr2": 0.0,
+    "sold_btc": 0.07125000000000001,
+    "rsi2_eth": 0.07125000000000001
+   },
+   "tasa_is": 0.6858449702881018,
+   "p95_is": 0.24872469674208417,
+   "escala_verificacion": 0.95,
+   "caida_historica_pesimista_is": -0.20393265154354312
+  },
+  "30": {
+   "pesos": {
+    "ab_cortos": 0.40800000000000003,
+    "mom_alts": 0.264,
+    "balas5": 0.264,
+    "rsi2_btc": 0.07200000000000001,
+    "wr2": 0.0,
+    "sold_btc": 0.07200000000000001,
+    "rsi2_eth": 0.096
+   },
+   "tasa_is": 0.8704314533966357,
+   "p95_is": 0.2974547414842955,
+   "escala_verificacion": 0.96,
+   "caida_historica_pesimista_is": -0.24718996440388374
+  }
+ }
+}
