@@ -129,18 +129,21 @@ class Corrida:
             prev = t - H4
             vela = {}
             if prev in C_.index:
-                rc, rh, rl, ro = C_.loc[prev], H_.loc[prev], L_.loc[prev], O_.loc[prev]
+                rc = C_.loc[prev]          # vela incompleta: o/h/l faltantes toman el cierre
+                rh, rl, ro = H_.loc[prev].fillna(rc), L_.loc[prev].fillna(rc), O_.loc[prev].fillna(rc)
             else:
                 rc = rh = rl = ro = None
             # cierre vigente para valorar: último cierre conocido (una vela faltante no es una pérdida)
             ult = pub.Cff.loc[:prev].iloc[-1] if len(pub.Cff.loc[:prev]) else None
             # funding de los perpetuos durante la vela que cerró (cada evento con el precio de ese momento)
-            if F is not None and rc is not None:
+            if F is not None:
                 for tf_, fila in F.loc[(F.index > prev) & (F.index <= t)].iterrows():
                     for b in list(papel.st["pos"]):
                         tasa = fila.get(b)
                         if tasa == tasa and tasa is not None:
-                            pagado += papel.aplicar_funding(b, float(tasa), float(rc.get(b, papel.st["pos"][b]["px"])))
+                            cu = ult.get(b) if ult is not None else None
+                            px_f = float(cu) if cu is not None and cu == cu else papel.st["pos"][b]["px"]
+                            pagado += papel.aplicar_funding(b, float(tasa), px_f)
             # patrimonio al cierre y peor punto de la vela con las posiciones que hubo durante la vela
             E_main = E_peor_main = papel.st["caja"]
             for b, p in papel.st["pos"].items():
@@ -162,6 +165,8 @@ class Corrida:
                 else:
                     E_bal = E_peor_bal = balas.patrimonio()
             E = E_main + E_bal
+            if E != E:
+                raise RuntimeError(f"Patrimonio NaN en {t}: caja={papel.st['caja']} pos={papel.st['pos']}")
             noc = {}
             for L in motor.libro().values():
                 cu = ult.get(L["simbolo"]) if ult is not None else None
