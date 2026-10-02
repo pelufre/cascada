@@ -161,7 +161,9 @@ tests/             paridad con el backtest y simulación de punta a punta
 ## Pruebas hechas
 
 - **Paridad de la cuenta principal**: el motor en papel, vela por vela de 2025-01 a 2026-09, coincide con el backtest en
-  los días en mercado (cortos 100 %, momentum 98,9 %, RSI(2) ETH 99,2 %, WR2 97,8 %, RSI(2) BTC 95,9 %, Soldados 94,2 %).
+  los días en mercado (cortos 100 %, momentum 99,2 %, RSI(2) ETH 99,1 %, WR2 97,8 %, RSI(2) BTC 95,9 %, Soldados 94,0 %).
+- **Filtro de liquidez de momentum (c40)**: mediana de 30 días del volumen diario ≥ 2 M USD, con el volumen global de
+  CoinMarketCap que el sistema registra una vez por día. Durante los primeros 20 días usa los días que tenga.
 - **Paridad de 30 balas**: 2019→2026, mismas 279 campañas y 0 liquidaciones que el backtest; patrimonio final 22,12 vs
   22,08 (correlación diaria 0,9999).
 - **Simulación de punta a punta** sin internet: ciclos, balas, controles, comandos y todas las rutas de la web.

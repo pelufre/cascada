@@ -97,6 +97,11 @@ class Sistema:
         except Exception as e:
             if db.incidencia("alta", "universo", f"No pude bajar el top 50 de CoinMarketCap: {e}"[:300]):
                 self.avisar("alta", f"No pude bajar el top 50: {e}"[:300])
+        try:
+            self.datos.registrar_volumen(cfg.cmc_api_key, t)
+            db.resolver("volumen")
+        except Exception as e:
+            db.incidencia("media", "volumen", f"No pude registrar el volumen de CoinMarketCap (filtro de liquidez de c40): {e}"[:300])
         bases = self.bases(t)
         hasta = int(t.value // 10**6)
         errores = self.datos.actualizar(bases, hasta_ms=hasta)

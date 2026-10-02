@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS asignacion (ts INTEGER, estrategia TEXT, pedido REAL,
 CREATE TABLE IF NOT EXISTS incidencias (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, nivel TEXT, tipo TEXT,
     mensaje TEXT, resuelta INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS universo (fecha TEXT, simbolo TEXT, puesto INTEGER, vol24 REAL, PRIMARY KEY (fecha, simbolo));
+CREATE TABLE IF NOT EXISTS vol_cmc (fecha TEXT, simbolo TEXT, vol REAL, PRIMARY KEY (fecha, simbolo));
 CREATE TABLE IF NOT EXISTS flujos (ts INTEGER, cuenta TEXT, monto REAL, nota TEXT);
 CREATE INDEX IF NOT EXISTS ix_ops_ts ON operaciones(ts);
 CREATE INDEX IF NOT EXISTS ix_lotes_est ON lotes(estrategia, cerrado_ts);

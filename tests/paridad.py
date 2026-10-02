@@ -60,6 +60,11 @@ def cargar_datos(db, carpeta, top50, resumen, universo, desde="2023-06-01"):
     top = top[top.col.isin(bases)]
     for r in top.itertuples():
         db.ejec("INSERT OR REPLACE INTO universo VALUES (?,?,?,?)", (r.fecha.strftime("%Y-%m-%d"), r.col, int(r.puesto), 0.0))
+    # volumen diario en USD (el mismo del backtest) para el filtro de liquidez de c40
+    vd = tablas["v"].groupby(ix.floor("D")).sum(min_count=1)
+    filas = [(d.strftime("%Y-%m-%d"), s, float(v)) for d, row in vd.iterrows() for s, v in row.items() if v == v]
+    with db._lock:
+        db.cx.executemany("INSERT OR REPLACE INTO vol_cmc VALUES (?,?,?)", filas); db.cx.commit()
     return bases
 
 

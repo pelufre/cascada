@@ -202,8 +202,8 @@ class MomentumC40(Estrategia):
     tf = "1d"
     nombre = "mom_alts"
 
-    def __init__(self, slots=5, risk=0.02, k=3.0, hist_min=90):
-        self.S = slots; self.risk = risk; self.k = k; self.hmin = hist_min
+    def __init__(self, slots=5, risk=0.02, k=3.0, hist_min=90, vol_min=2e6):
+        self.S = slots; self.risk = risk; self.k = k; self.hmin = hist_min; self.vol_min = vol_min
 
     def paso(self, t, datos, st, abiertos, universo, mercados):
         pos = st.setdefault("pos", {})            # simbolo -> dict(id, frac, dist)
@@ -221,6 +221,11 @@ class MomentumC40(Estrategia):
         b = D["BTC"].c
         btc_ok = b.iat[-1] > b.iloc[-140:].mean() and b.iat[-1] / b.iat[-85] - 1 > 0
         elig = [s for s in D if (s in universo or s in ("BTC", "ETH")) and len(D[s]) >= self.hmin]
+        # liquidez: mediana del volumen diario de 30 días >= 2 M USD (volumen global de CoinMarketCap)
+        vol, ndias = datos.volumenes(t) if hasattr(datos, "volumenes") else ({}, 0)
+        st["vol_dias"] = ndias
+        if ndias:
+            elig = [s for s in elig if vol.get(s, 0) >= self.vol_min]
         sobre = [s for s in elig if len(D[s]) >= 50 and D[s].c.iat[-1] > D[s].c.iloc[-50:].mean()]
         amp = len(sobre) / max(len(elig), 1)
         on = st.get("amp_on", False)

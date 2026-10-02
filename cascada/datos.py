@@ -13,10 +13,10 @@ EXCLUIR_SIMBOLOS = {"USDT", "USDC", "DAI", "FDUSD", "TUSD", "USDE", "PYUSD", "US
                     "WEETH", "WBETH", "CBBTC", "USD1", "BUIDL", "USDTB", "XAUT", "PAXG", "BSC-USD", "SUSDE", "USDF"}
 
 
-def top50_cmc(api_key, n=50):
-    """Top n de CMC por capitalización, sin stables ni wrapped. Devuelve lista de (puesto, símbolo, vol24)."""
+def listado_cmc(api_key, limite=120):
+    """Listado de CMC por capitalización, sin stables ni wrapped: lista de (puesto, símbolo, volumen 24 h en USD)."""
     req = urllib.request.Request(
-        "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?limit=120&convert=USD",
+        f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?limit={limite}&convert=USD",
         headers={"X-CMC_PRO_API_KEY": api_key, "Accept": "application/json"})
     data = json.load(urllib.request.urlopen(req, timeout=30))["data"]
     out = []
@@ -25,9 +25,11 @@ def top50_cmc(api_key, n=50):
         if d["symbol"].upper() in EXCLUIR_SIMBOLOS or tags & EXCLUIR_TAGS:
             continue
         out.append((len(out) + 1, d["symbol"].upper(), float(d["quote"]["USD"].get("volume_24h") or 0)))
-        if len(out) == n:
-            break
     return out
+
+
+def top50_cmc(api_key, n=50):
+    return listado_cmc(api_key)[:n]
 
 
 class Datos:
@@ -58,6 +60,31 @@ class Datos:
         if not r or not r[0]["f"]:
             return []
         return [x["simbolo"] for x in self.db.filas("SELECT simbolo FROM universo WHERE fecha=? ORDER BY puesto", (r[0]["f"],))]
+
+    # ---------- volumen (filtro de liquidez de c40) ----------
+    def registrar_volumen(self, api_key, t):
+        """Guarda una vez por día el volumen 24 h de CMC, con la fecha del día que terminó. Devuelve True si guardó."""
+        dia = (pd.Timestamp(t).normalize() - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        if self.db.filas("SELECT 1 FROM vol_cmc WHERE fecha=? LIMIT 1", (dia,)):
+            return False
+        if not api_key:
+            raise RuntimeError("Falta CMC_API_KEY para el volumen")
+        for _, s, v in listado_cmc(api_key):
+            self.db.ejec("INSERT OR REPLACE INTO vol_cmc VALUES (?,?,?)", (dia, s, v))
+        return True
+
+    def volumenes(self, t, dias=30, min_dias=20):
+        """Mediana del volumen diario (USD) de los últimos `dias` días cerrados antes de t, por símbolo.
+        Devuelve (dict símbolo → mediana, cantidad de días con datos). Con menos de `min_dias` días de algún símbolo
+        se usa lo que haya (al arrancar el sistema)."""
+        t = pd.Timestamp(t)
+        d0 = (t.normalize() - pd.Timedelta(days=dias)).strftime("%Y-%m-%d")
+        d1 = (t.normalize() - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        f = self.db.filas("SELECT fecha, simbolo, vol FROM vol_cmc WHERE fecha>=? AND fecha<=?", (d0, d1))
+        if not f:
+            return {}, 0
+        df = pd.DataFrame(f)
+        return df.groupby("simbolo").vol.median().to_dict(), df.fecha.nunique()
 
     # ---------- velas ----------
     def actualizar(self, bases, hasta_ms=None):
