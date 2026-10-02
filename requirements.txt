@@ -1,4 +1,4 @@
-ccxt>=4.3
-pandas>=2.1
-numpy>=1.26
-pyyaml>=6.0
+ccxt==4.5.85
+pandas==3.0.6
+numpy==2.5.3
+pyyaml==6.0.3
