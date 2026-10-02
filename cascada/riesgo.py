@@ -1,4 +1,4 @@
-"""Riesgo: patrimonio y caída, tope de nocional, conciliación y previsión de incidencias futuras."""
+"""Riesgo: patrimonio y caída, y previsión de incidencias futuras (el tope y la conciliación están en el motor)."""
 import time
 
 import pandas as pd
@@ -22,51 +22,6 @@ def actualizar_patrimonio(db, t, E, E_main, E_bal, lib, precios, cfg):
         db.ejec("INSERT OR REPLACE INTO patrimonio VALUES (?,?,?,?,?,?)", (ts, cuenta, valor, no, maximo if cuenta == "total" else None,
                                                                          caida if cuenta == "total" else None))
     return dict(caida=caida, alerta=-caida >= cfg.alerta_caida, corte=-caida >= cfg.corte_caida, nocional=n, maximo=maximo)
-
-
-def controlar_tope(motor, t, E, lib, precios):
-    """Si el nocional supera 1,05 × tope × patrimonio (por movimiento de precios), recorta desde la última prioridad."""
-    cfg = motor.cfg
-    w_bal = cfg.pesos.get("balas5", 0)
-    limite = 1.05 * (cfg.tope_nocional - w_bal) * E
-    n = nocional(lib, precios)
-    if n <= limite:
-        return
-    exceso = n - limite
-    for est in reversed([p for p in cfg.prioridad if p != "balas5"]):
-        for L in [x for x in lib.values() if x["estrategia"] == est]:
-            if exceso <= 0:
-                break
-            px = precios.get(L["simbolo"], L["precio_entrada"])
-            v = abs(L["contratos"]) * L["tam_contrato"] * px
-            if v <= exceso:
-                motor._cerrar_lote(t, L, "tope")
-                exceso -= v
-            else:
-                m = motor.mercados[L["simbolo"]]
-                quitar = int(exceso / (m["tam"] * px) / m["minimo"] + 1) * m["minimo"]
-                motor._ajustar(t, L, max(abs(L["contratos"]) - quitar, 0))
-                exceso = 0
-    motor.db.incidencia("media", "tope", f"Nocional {n:.0f} > límite {limite:.0f}: recorté desde la última prioridad")
-
-
-def conciliar(motor, lib):
-    """Compara las posiciones del exchange con la suma del libro por símbolo."""
-    esperado = {}
-    for L in lib.values():
-        esperado[L["simbolo"]] = esperado.get(L["simbolo"], 0) + L["lado"] * abs(L["contratos"])
-    real = motor.bolsa.posiciones()
-    dif = []
-    for s in set(esperado) | set(real):
-        e, r = esperado.get(s, 0), real.get(s, 0)
-        if abs(e - r) > max(1e-9, 0.01 * max(abs(e), abs(r))):
-            dif.append(f"{s}: libro {e:g} / exchange {r:g}")
-    if dif:
-        motor.db.incidencia("alta", "conciliacion", "Diferencias entre libro y exchange: " + "; ".join(dif))
-        motor.db.set("conciliacion_ok", False)
-    else:
-        motor.db.resolver("conciliacion")
-        motor.db.set("conciliacion_ok", True)
 
 
 def previsiones(db, cfg, precios=None, funding=None, balas=None):
@@ -115,6 +70,8 @@ def previsiones(db, cfg, precios=None, funding=None, balas=None):
                         f"30 balas: liquidación a {balas['dist_liq']:.1%} del precio"))
         if balas.get("reserva_usada"):
             out.append(("media", "balas_reserva", "30 balas: la reserva ya entró en la campaña actual"))
+    if db.get("liquidando"):
+        out.append(("critica", "liquidando", "Cierre total en curso: quedan posiciones abiertas, se reintenta cada minuto"))
     if not db.get("conciliacion_ok", True):
         out.append(("alta", "conciliacion", "Libro y exchange no coinciden: no se abren lotes nuevos hasta corregir"))
     orden = {"critica": 0, "alta": 1, "media": 2, "baja": 3}

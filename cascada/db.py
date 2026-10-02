@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS incidencias (id INTEGER PRIMARY KEY AUTOINCREMENT, ts
 CREATE TABLE IF NOT EXISTS universo (fecha TEXT, simbolo TEXT, puesto INTEGER, vol24 REAL, PRIMARY KEY (fecha, simbolo));
 CREATE TABLE IF NOT EXISTS vol_cmc (fecha TEXT, simbolo TEXT, vol REAL, PRIMARY KEY (fecha, simbolo));
 CREATE TABLE IF NOT EXISTS flujos (ts INTEGER, cuenta TEXT, monto REAL, nota TEXT);
+CREATE TABLE IF NOT EXISTS ordenes (client_oid TEXT PRIMARY KEY, ts INTEGER, simbolo TEXT, lado TEXT, contratos REAL,
+    reduce INTEGER, estado TEXT, orden_id TEXT, llenado REAL, precio REAL, comision REAL, plan TEXT,
+    aplicado INTEGER DEFAULT 0, intentos INTEGER DEFAULT 0, error TEXT);
 CREATE INDEX IF NOT EXISTS ix_ops_ts ON operaciones(ts);
 CREATE INDEX IF NOT EXISTS ix_lotes_est ON lotes(estrategia, cerrado_ts);
 """
@@ -49,6 +52,10 @@ class Base:
         self.cx.row_factory = sqlite3.Row
         self.cx.execute("PRAGMA journal_mode=WAL")
         self.cx.executescript(ESQUEMA)
+        cols = {r[1] for r in self.cx.execute("PRAGMA table_info(lotes)")}
+        for col, tipo in (("comision", "REAL"), ("stop_contratos", "REAL")):
+            if col not in cols:
+                self.cx.execute(f"ALTER TABLE lotes ADD COLUMN {col} {tipo}")
         self.cx.commit()
 
     def ejec(self, sql, args=()):

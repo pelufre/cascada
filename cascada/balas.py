@@ -49,6 +49,41 @@ class Balas:
                      (int(pd.Timestamp(t).value // 10**6), "balas", "balas5", f"campaña_{self.st['camps']}", "XBTUSDM",
                       tipo, nocional_usd, precio, nocional_usd, abs(nocional_usd) * P["FEE"], motivo, "real" if self.real else "papel"))
 
+    def _dia(self, t, c):
+        """Cierre diario c en t (00:00 UTC): serie diaria, EMA semanal (cierre del domingo), régimen, apalancamiento y momento."""
+        s = self.st
+        dC = s["dC"]; dC.append(c); del dC[:-400]
+        if t.dayofweek == 0:   # cierre del domingo
+            a = 2.0 / 21
+            s["emaW"] = c if s["emaW"] is None else s["emaW"] + a * (c - s["emaW"])
+            s["emaHist"].append(s["emaW"]); del s["emaHist"][:-10]
+        if len(s["emaHist"]) > 4:
+            eL, eS = s["emaHist"][-1], s["emaHist"][-5]
+            if t.dayofweek == 0:
+                s["regWeekly"] = c > eL and eL > eS
+        nd = len(dC); lm = 1.0
+        if nd > 60:
+            r = np.diff(np.log(dC[-61:])); vol = r.std(ddof=1) * math.sqrt(365)
+            if vol > 0: lm = max(0.33, min(1.0, 0.60 / vol))
+        if nd >= 200 and c / np.mean(dC[-200:]) > 2.2:
+            lm *= 0.5
+        s["levm"] = lm
+        s["momT"] = (c / dC[-91] - 1 > 0) if nd > 90 else False
+
+    def _calentar(self, t, cierres_4h):
+        """Al arrancar sin historia, reconstruye las series diarias y semanales con las velas de 4h disponibles
+        (para que el régimen semanal y el momento de 90 días estén listos desde el primer ciclo)."""
+        s = self.st
+        if s.get("calentado"):
+            return
+        s["calentado"] = True
+        if s["dC"] or cierres_4h is None or not len(cierres_4h):
+            return
+        for ts, c in cierres_4h.items():
+            cierre = pd.Timestamp(ts) + pd.Timedelta(hours=4)
+            if cierre.hour == 0 and cierre < t:
+                self._dia(cierre, float(c))
+
     # ---------------- paso por vela cerrada
     def procesar(self, t, vela, cierres_4h, funding_8h=None, bloqueado=False):
         """t: cierre de la vela (=apertura de la siguiente). vela: (o,h,l,c) de la vela cerrada.
@@ -57,6 +92,7 @@ class Balas:
         o, h, l, c = vela
         if s["ultima_vela"] and pd.Timestamp(s["ultima_vela"]) >= t:
             return
+        self._calentar(t, cierres_4h)
         s["ultima_vela"] = str(t); s["ultimo_precio"] = c
         fr = (funding_8h if funding_8h is not None else 0.10 / 365 / 3) / 2      # por vela de 4h
         # 2) reserva, funding y liquidación durante la vela cerrada
@@ -80,25 +116,7 @@ class Balas:
         s["dist_liq"] = (c / liq - 1) if liq else None
         # 3) series diarias y semanales al cierre del día
         if t.hour == 0:
-            dC = s["dC"]; dC.append(c); del dC[:-400]
-            if t.dayofweek == 0:   # cierre del domingo
-                a = 2.0 / 21
-                s["emaW"] = c if s["emaW"] is None else s["emaW"] + a * (c - s["emaW"])
-                s["emaHist"].append(s["emaW"]); del s["emaHist"][:-10]
-            reg_prev = False
-            if len(s["emaHist"]) > 4:
-                eL, eS = s["emaHist"][-1], s["emaHist"][-5]
-                reg_prev = c > eL and eL > eS
-                if t.dayofweek == 0:
-                    s["regWeekly"] = reg_prev
-            nd = len(dC); lm = 1.0
-            if nd > 60:
-                r = np.diff(np.log(dC[-61:])); vol = r.std(ddof=1) * math.sqrt(365)
-                if vol > 0: lm = max(0.33, min(1.0, 0.60 / vol))
-            if nd >= 200 and c / np.mean(dC[-200:]) > 2.2:
-                lm *= 0.5
-            s["levm"] = lm
-            s["momT"] = (c / dC[-91] - 1 > 0) if nd > 90 else False
+            self._dia(t, c)
         reg_today = s["regWeekly"]
         # 4) decisiones
         cs = cierres_4h
@@ -153,6 +171,8 @@ class Balas:
                     s["ntn"] += q; s["inv"] += q / (px * (1 + P["SLIP"])); s["mbtc"] += upos / px - q * P["FEE"] / px
                     self._op(t, "buy", px, q * s["W"], f"recarga {add} balas")
                     if self.real: self.real.recargar(u * s["W"], q * s["W"], px)
+                elif u > 0 and self.real:
+                    self.real.aportar_margen(u * s["W"], px)        # recarga sólo de margen
                 s["mbtc"] += (u - upos) / px
                 s["used"] += add
         s["eq"] = self.patrimonio(px)

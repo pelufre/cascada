@@ -139,9 +139,8 @@ class Manejador(BaseHTTPRequestHandler):
         u = urlparse(self.path); q = parse_qs(u.query)
         s = self.sistema
         if u.path == "/salud":
-            lat = s.db.get("latido") or 0
-            ok = time.time() - lat < 120
-            return self._enviar(200 if ok else 503, dict(ok=ok, latido_seg=round(time.time() - lat)))
+            d = salud(s)
+            return self._enviar(200 if d["ok"] else 503, d)
         if not s.cfg.web_clave:
             return self._enviar(503, b"Falta WEB_CLAVE en .env", "text/plain; charset=utf-8")
         if not self._autorizado():
@@ -187,6 +186,31 @@ class Manejador(BaseHTTPRequestHandler):
             return self._enviar(200, dict(respuesta=r.get(timeout=30)))
         except queue.Empty:
             return self._enviar(504, dict(error="el motor está ocupado, probá en un minuto"))
+
+
+def salud(s):
+    """Salud real del servicio: bucle vivo, control de riesgo vivo, ciclo al día, sin incidencias críticas,
+    libro conciliado y sin cierre total pendiente. La usa el HEALTHCHECK de Docker."""
+    db = s.db; ahora = time.time()
+    inicio = db.get("inicio") or ahora
+    lat = db.get("latido") or 0
+    latc = db.get("latido_control") or inicio
+    uc = (db.get("ultimo_ciclo") or {}).get("ts") or inicio
+    criticas = db.filas("SELECT mensaje FROM incidencias WHERE nivel='critica' AND resuelta=0 ORDER BY id DESC LIMIT 3")
+    fallas = []
+    if ahora - lat > 120:
+        fallas.append(f"bucle principal sin latido hace {ahora - lat:.0f} s")
+    if ahora - latc > 20 * 60:
+        fallas.append(f"control de riesgo sin correr hace {(ahora - latc) / 60:.0f} min")
+    if ahora - uc > 4 * 3600 + 20 * 60:
+        fallas.append(f"último ciclo hace {(ahora - uc) / 3600:.1f} h")
+    if criticas:
+        fallas.append("incidencias críticas: " + " | ".join(c["mensaje"][:120] for c in criticas))
+    if not db.get("conciliacion_ok", True):
+        fallas.append("libro y exchange no coinciden")
+    if db.get("liquidando"):
+        fallas.append("cierre total pendiente")
+    return dict(ok=not fallas, fallas=fallas, latido_seg=round(ahora - lat), version=db.get("version"))
 
 
 def arrancar(sistema, puerto=8080, host="0.0.0.0"):

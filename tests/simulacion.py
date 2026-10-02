@@ -45,6 +45,10 @@ def main(a):
     print(s.comando("estado", []))
     print(s.comando("previsiones", []))
     print(s.comando("cerrar_todo", []))
+    print(s.comando("cerrar_todo", ["si"]))
+    print("posiciones tras cerrar todo:", s.bolsa.posiciones(), "· balas activa:", s.balas.st["activo"] if s.balas else None,
+          "· liquidando:", s.db.get("liquidando"))
+    print(s.comando("reanudar", []))
     aut = {"Authorization": "Basic " + base64.b64encode(b"admin:x").decode()}
     for u in ("/", "/api/todo", "/api/patrimonio?rango=todo", "/api/operaciones?limite=50", "/api/backtest", "/api/comparacion", "/salud"):
         r = urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8099" + u, headers=aut))

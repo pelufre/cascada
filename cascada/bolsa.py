@@ -78,16 +78,36 @@ class Publico:
             return None
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Interfaz común de la cuenta principal (real y papel):
+#   enviar_orden(base, lado, contratos, reduce_only, client_oid, precio_ref) -> dict(estado, llenado, precio, comision, orden_id)
+#        estado: cerrada (llenó todo) | cancelada (llenó una parte o nada y se canceló el resto) | rechazada | abierta
+#   estado_orden(base, client_oid) -> el mismo dict, o None si el exchange no la conoce
+#   enviar_stop(base, lado, contratos, precio, client_oid) -> id   (reduce-only; lanza excepción si se rechaza)
+#   estado_stop(base, id) -> dict(estado=abierta|ejecutada|cancelada|desconocida, llenado, precio)
+#   cancelar_stop(base, id) -> True si quedó cancelado (o ya no estaba abierto), False si no se pudo
+#   posiciones() -> {base: contratos con signo};  patrimonio() -> USDT
+# ---------------------------------------------------------------------------------------------------------------------
+ESTADOS_CCXT = {"closed": "cerrada", "canceled": "cancelada", "cancelled": "cancelada", "expired": "cancelada",
+                "rejected": "rechazada", "open": "abierta"}
+
+
 class KucoinReal:
-    """Cuenta de futuros USDT-M real. Todas las órdenes son a mercado con tope de deslizamiento o stops reduce-only."""
+    """Cuenta de futuros USDT-M real. Aperturas: límite IOC con tope de deslizamiento. Reducciones: a mercado,
+    siempre reduce-only. Stops: reduce-only en el exchange."""
 
     modo = "real"
+    ESPERA = 1.0          # segundos entre consultas del estado de una orden
+    INTENTOS = 10
 
-    def __init__(self, credenciales, publico, apalancamiento=3):
-        import ccxt
-        self.ex = ccxt.kucoinfutures({**credenciales, "enableRateLimit": True})
+    def __init__(self, credenciales, publico, apalancamiento=3, deslizamiento_max=0.005, ex=None):
+        if ex is None:
+            import ccxt
+            ex = ccxt.kucoinfutures({**credenciales, "enableRateLimit": True})
+        self.ex = ex
         self.pub = publico
         self.lev = apalancamiento
+        self.desl = deslizamiento_max
 
     def patrimonio(self):
         b = self.ex.fetch_balance({"currency": "USDT"})
@@ -104,58 +124,96 @@ class KucoinReal:
                 out[p["symbol"].split("/")[0]] = c if p.get("side") == "long" else -c
         return out
 
-    def orden_mercado(self, base, lado, contratos, reduce_only=False, client_oid=None):
-        params = {"reduceOnly": reduce_only, "clientOid": client_oid or uuid.uuid4().hex, "leverage": self.lev,
-                  "marginMode": "cross"}
-        o = self.ex.create_order(ccxt_sym(base), "market", lado, contratos, None, params)
-        oid = o["id"]
-        for _ in range(10):
-            f = self.ex.fetch_order(oid, ccxt_sym(base))
-            if f.get("status") == "closed" or f.get("filled"):
-                break
-            time.sleep(1)
-        precio = float(f.get("average") or f.get("price") or 0)
-        com = float((f.get("fee") or {}).get("cost") or 0)
-        return dict(id=oid, precio=precio, contratos=float(f.get("filled") or contratos), comision=com)
+    # ------------------------------------------------------------ órdenes
+    @staticmethod
+    def _resultado(f, oid):
+        llenado = float(f.get("filled") or 0)
+        estado = ESTADOS_CCXT.get(f.get("status"), "abierta" if f.get("status") is None else "desconocida")
+        if estado == "cerrada" and f.get("amount") and llenado < float(f["amount"]) - 1e-9:
+            estado = "cancelada"
+        precio = f.get("average") or (f.get("price") if llenado else None)
+        return dict(estado=estado, llenado=llenado, precio=float(precio) if precio else None,
+                    comision=float((f.get("fee") or {}).get("cost") or 0), orden_id=f.get("id") or oid)
 
-    def orden_stop(self, base, lado, contratos, precio_stop, client_oid=None):
-        params = {"reduceOnly": True, "triggerPrice": precio_stop, "clientOid": client_oid or uuid.uuid4().hex,
+    def _esperar(self, oid, sym):
+        f = {}
+        for _ in range(self.INTENTOS):
+            f = self.ex.fetch_order(oid, sym)
+            if f.get("status") not in ("open", None):
+                return f
+            time.sleep(self.ESPERA)
+        return f
+
+    def enviar_orden(self, base, lado, contratos, reduce_only=False, client_oid=None, precio_ref=None):
+        sym = ccxt_sym(base)
+        params = {"clientOid": client_oid or uuid.uuid4().hex, "marginMode": "cross", "leverage": self.lev}
+        if reduce_only:
+            params["reduceOnly"] = True
+        if precio_ref and self.desl and not reduce_only:
+            px = precio_ref * (1 + self.desl if lado == "buy" else 1 - self.desl)
+            try:
+                px = float(self.ex.price_to_precision(sym, px))
+            except Exception:
+                pass
+            params["timeInForce"] = "IOC"
+            o = self.ex.create_order(sym, "limit", lado, contratos, px, params)
+        else:
+            o = self.ex.create_order(sym, "market", lado, contratos, None, params)
+        oid = o["id"]
+        f = self._esperar(oid, sym)
+        if f.get("status") in ("open", None):          # quedó una parte sin llenar: se cancela el resto
+            try:
+                self.ex.cancel_order(oid, sym)
+            except Exception:
+                pass
+            f = self._esperar(oid, sym)
+        return self._resultado(f, oid)
+
+    def estado_orden(self, base, client_oid):
+        try:
+            f = self.ex.fetch_order(None, ccxt_sym(base), {"clientOid": client_oid})
+        except Exception:
+            return None
+        return self._resultado(f, f.get("id")) if f else None
+
+    def enviar_stop(self, base, lado, contratos, precio, client_oid=None):
+        params = {"reduceOnly": True, "triggerPrice": precio, "clientOid": client_oid or uuid.uuid4().hex,
                   "leverage": self.lev, "marginMode": "cross"}
         o = self.ex.create_order(ccxt_sym(base), "market", lado, contratos, None, params)
         return o["id"]
 
+    def estado_stop(self, base, orden_id):
+        sym = ccxt_sym(base)
+        try:
+            if any(o["id"] == orden_id for o in self.ex.fetch_open_orders(sym, params={"trigger": True})):
+                return dict(estado="abierta", llenado=0.0, precio=None)
+        except Exception:
+            pass
+        try:
+            f = self.ex.fetch_order(orden_id, sym)
+        except Exception:
+            return dict(estado="desconocida", llenado=0.0, precio=None)
+        llen = float(f.get("filled") or 0)
+        if llen > 0:
+            px = f.get("average") or f.get("price")
+            return dict(estado="ejecutada", llenado=llen, precio=float(px) if px else None)
+        if f.get("status") in ("canceled", "cancelled", "expired", "rejected", "closed"):
+            return dict(estado="cancelada", llenado=0.0, precio=None)
+        if f.get("status") == "open":
+            return dict(estado="abierta", llenado=0.0, precio=None)
+        return dict(estado="desconocida", llenado=0.0, precio=None)
+
     def cancelar_stop(self, base, orden_id):
         try:
             self.ex.cancel_order(orden_id, ccxt_sym(base), {"trigger": True})
+            return True
         except Exception:
-            pass
-
-    def stops_abiertos(self, bases):
-        ids = set()
-        for b in bases:
-            for o in self.ex.fetch_open_orders(ccxt_sym(b), params={"trigger": True}):
-                ids.add(o["id"])
-        return ids
-
-    def precio_stop(self, base, orden_id, desde_ms):
-        """Precio al que se ejecutó un stop (None si no se sabe)."""
-        try:
-            o = self.ex.fetch_order(orden_id, ccxt_sym(base), {"trigger": True})
-            px = o.get("average") or o.get("price")
-            if px:
-                return float(px)
-        except Exception:
-            pass
-        try:
-            tr = self.ex.fetch_my_trades(ccxt_sym(base), since=desde_ms)
-            return float(tr[-1]["price"]) if tr else None
-        except Exception:
-            return None
+            return self.estado_stop(base, orden_id)["estado"] != "abierta"
 
 
 class Papel:
-    """Exchange simulado: llena a mercado al último precio (± deslizamiento), cobra comisión y
-    dispara stops con el máximo/mínimo de cada vela que el motor le pasa."""
+    """Exchange simulado con la misma interfaz que KucoinReal: llena a mercado al último precio (± deslizamiento),
+    cobra comisión, respeta reduce-only y dispara stops con el máximo/mínimo de cada vela que le pasa el motor."""
 
     modo = "papel"
 
@@ -163,8 +221,9 @@ class Papel:
         self.db = base_datos; self.merc = mercados; self.com = comision; self.desliz = desliz; self.clave = clave
         st = self.db.get(clave)
         if st is None:
-            st = dict(caja=capital, pos={}, stops={}, ultimo={}, stops_hechos=[])
+            st = dict(caja=capital, pos={}, stops={}, ultimo={}, ordenes={})
             self.db.set(clave, st)
+        st.setdefault("ordenes", {})
         self.st = st
 
     def _guardar(self):
@@ -183,7 +242,7 @@ class Papel:
     def posiciones(self):
         return {b: p["c"] for b, p in self.st["pos"].items() if p["c"]}
 
-    def _llenar(self, base, delta, precio, motivo=""):
+    def _llenar(self, base, delta, precio):
         tam = self.merc[base]["tam"]
         p = self.st["pos"].get(base, dict(c=0.0, px=precio))
         com = abs(delta) * tam * precio * self.com
@@ -203,46 +262,73 @@ class Papel:
             self.st["pos"][base] = p
         return com
 
-    def orden_mercado(self, base, lado, contratos, reduce_only=False, client_oid=None):
-        px = self.st["ultimo"][base] * (1 + self.desliz if lado == "buy" else 1 - self.desliz)
-        delta = contratos if lado == "buy" else -contratos
-        com = self._llenar(base, delta, px)
-        self._guardar()
-        return dict(id=client_oid or uuid.uuid4().hex, precio=px, contratos=contratos, comision=com)
+    def _acotar(self, base, lado, contratos, reduce_only):
+        """Reduce-only: sólo hasta cerrar la posición; sin posición (o del mismo lado) no llena nada."""
+        if not reduce_only:
+            return contratos
+        actual = self.st["pos"].get(base, {}).get("c", 0.0)
+        if actual == 0 or (actual > 0) == (lado == "buy"):
+            return 0.0
+        return min(contratos, abs(actual))
 
-    def orden_stop(self, base, lado, contratos, precio_stop, client_oid=None):
+    def enviar_orden(self, base, lado, contratos, reduce_only=False, client_oid=None, precio_ref=None):
         oid = client_oid or uuid.uuid4().hex
-        self.st["stops"][oid] = dict(base=base, lado=lado, c=contratos, px=precio_stop)
+        q = self._acotar(base, lado, float(contratos), reduce_only)
+        px = self.st["ultimo"][base] * (1 + self.desliz if lado == "buy" else 1 - self.desliz)
+        com = self._llenar(base, q if lado == "buy" else -q, px) if q > 0 else 0.0
+        r = dict(estado="cerrada" if q >= contratos else "cancelada" if q > 0 else "rechazada", llenado=q,
+                 precio=px if q > 0 else None, comision=com, orden_id=oid)
+        self.st["ordenes"][oid] = r
+        if len(self.st["ordenes"]) > 300:
+            for k in list(self.st["ordenes"])[:100]:
+                self.st["ordenes"].pop(k)
+        self._guardar()
+        return r
+
+    def estado_orden(self, base, client_oid):
+        return self.st["ordenes"].get(client_oid)
+
+    def enviar_stop(self, base, lado, contratos, precio, client_oid=None):
+        oid = client_oid or uuid.uuid4().hex
+        self.st["stops"][oid] = dict(base=base, lado=lado, c=contratos, px=precio, estado="abierta", llenado=0.0, precio=None)
         self._guardar()
         return oid
 
-    def cancelar_stop(self, base, orden_id):
-        self.st["stops"].pop(orden_id, None); self._guardar()
+    def estado_stop(self, base, orden_id):
+        s = self.st["stops"].get(orden_id)
+        if not s:
+            return dict(estado="desconocida", llenado=0.0, precio=None)
+        return dict(estado=s.get("estado", "abierta"), llenado=s.get("llenado", 0.0), precio=s.get("precio"))
 
-    def stops_abiertos(self, bases=None):
-        return set(self.st["stops"])
+    def cancelar_stop(self, base, orden_id):
+        s = self.st["stops"].get(orden_id)
+        if s and s.get("estado", "abierta") == "abierta":
+            s["estado"] = "cancelada"
+            self._guardar()
+        return True
 
     def revisar_stops(self, velas_por_base):
         """velas_por_base: base -> (o, h, l) de la vela recién cerrada. Llena al stop o a la apertura si la saltó."""
         for oid, s in list(self.st["stops"].items()):
+            if s.get("estado", "abierta") != "abierta":
+                continue
             v = velas_por_base.get(s["base"])
             if v is None:
                 continue
-            o, h, l = v
+            o, h, l = v[:3]
             if s["lado"] == "sell" and l <= s["px"]:
                 px = min(o, s["px"])
             elif s["lado"] == "buy" and h >= s["px"]:
                 px = max(o, s["px"])
             else:
                 continue
-            delta = s["c"] if s["lado"] == "buy" else -s["c"]
-            self._llenar(s["base"], delta, px)
-            self.st["stops"].pop(oid)
-            self.st["stops_hechos"].append(dict(id=oid, base=s["base"], px=px))
+            q = self._acotar(s["base"], s["lado"], s["c"], True)
+            if q > 0:
+                self._llenar(s["base"], q if s["lado"] == "buy" else -q, px)
+                s.update(estado="ejecutada", llenado=q, precio=px)
+            else:
+                s.update(estado="cancelada")
+        hechos = [k for k, s in self.st["stops"].items() if s.get("estado", "abierta") != "abierta"]
+        for k in hechos[:-200]:
+            self.st["stops"].pop(k)
         self._guardar()
-
-    def precio_stop(self, base, orden_id, desde_ms):
-        for s in reversed(self.st["stops_hechos"]):
-            if s["id"] == orden_id:
-                return s["px"]
-        return None

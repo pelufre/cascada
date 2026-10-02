@@ -145,7 +145,7 @@ def texto_operaciones(db, cfg, desde_ms, hasta_ms, kpis):
         for L in ce:
             n = abs(L["contratos"]) * L["tam_contrato"] * L["precio_entrada"]
             r = (L["pnl"] or 0) / n if n else None
-            mot = {"stop": " stop", "corte": " corte", "tope": " recorte"}.get(L["motivo_salida"], "")
+            mot = {"stop": " stop", "corte": " corte", "tope": " recorte", "sin_stop": " sin stop", "asignacion": " sin capital"}.get(L["motivo_salida"], "")
             items.append(f"{lado(L)} {L['simbolo']} {_pct(r)}{mot}")
         lin.append("🔴 Cierra: " + " · ".join(items))
     for b in bal:

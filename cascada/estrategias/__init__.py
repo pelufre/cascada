@@ -39,8 +39,12 @@ class RSI2(Estrategia):
         c = b.c
         R = rsi_wilder(c).iat[-1]; C = c.iat[-1]; ET = ema(c, self.trend).iat[-1]; EX = ema(c, self.salida).iat[-1]
         dentro = st.get("dentro", False); armado = st.get("armado", False)
-        if dentro and st.get("id") in st.get("_cerrados", []):
-            st["id"] = f"{self.nombre}_{pd.Timestamp(t):%Y%m%d%H}"
+        cerr = st.get("_cerrados", {})
+        if dentro and st.get("id") in cerr:
+            if cerr.get(st["id"]) == "asignacion":     # el reparto le dio 0: sigue adentro y vuelve cuando haya capital
+                st["id"] = f"{self.nombre}_{pd.Timestamp(t):%Y%m%d%H}"
+            else:                                       # lo cerró otro mecanismo (tope, corte, manual): espera señal nueva
+                dentro, armado = False, False
         if not dentro:
             if R <= self.thr and C > ET:
                 dentro, armado = True, False
@@ -78,8 +82,12 @@ class WR2(Estrategia):
         mdi = (mdm.ewm(alpha=1 / 14, adjust=False).mean() / a).iat[-1]
         vol = d.c.pct_change().rolling(20).std().iat[-1] * np.sqrt(365)
         cur = st.get("cur", 0.0)
-        if cur > 0 and st.get("id") in st.get("_cerrados", []):
-            st["id"] = f"wr2_{pd.Timestamp(t):%Y%m%d}"
+        cerr = st.get("_cerrados", {})
+        if cur > 0 and st.get("id") in cerr:
+            if cerr.get(st["id"]) == "asignacion":     # el reparto le dio 0: sigue adentro y vuelve cuando haya capital
+                st["id"] = f"wr2_{pd.Timestamp(t):%Y%m%d}"
+            else:                                       # lo cerró otro mecanismo (tope, corte, manual): espera señal nueva
+                cur = 0.0
         if cur == 0 and wr >= -20 and d.c.iat[-1] > sma and pdi > mdi:
             cur = float(min(1.0, self.vt / vol))
             st["id"] = f"wr2_{pd.Timestamp(t):%Y%m%d}"

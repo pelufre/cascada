@@ -375,9 +375,18 @@ class _DatosRSI:
 def o12_rsi2_no_reentra():
     """RSI(2) cuyo lote cerró otro mecanismo (tope, corte, manual) espera una señal nueva para volver a entrar."""
     from cascada.estrategias import RSI2
-    st = dict(dentro=True, armado=False, id="rsi2_btc_x", _cerrados=["rsi2_btc_x"])
+    st = dict(dentro=True, armado=False, id="rsi2_btc_x", _cerrados={"rsi2_btc_x": "tope"})
     out = RSI2("BTC").paso(T0, _DatosRSI(), st, {}, [], {})
     assert out == [], out
+
+
+def o12b_rsi2_sigue_si_fue_reparto():
+    """Si el lote se cerró porque el reparto le dio 0 (no por un mecanismo externo), RSI(2) sigue adentro como en el
+    backtest y vuelve a pedir capital con un lote nuevo."""
+    from cascada.estrategias import RSI2
+    st = dict(dentro=True, armado=False, id="rsi2_btc_x", _cerrados={"rsi2_btc_x": "asignacion"})
+    out = RSI2("BTC").paso(T0, _DatosRSI(), st, {}, [], {})
+    assert len(out) == 1 and out[0]["id"] != "rsi2_btc_x", out
 
 
 class _ExKucoin:
@@ -459,7 +468,7 @@ def o15_recarga_solo_margen():
 
 PRUEBAS = [o01_llenado_parcial, o02_stop_rechazado, o03_reducciones_reduce_only, o04_pausa_no_aumenta, o05_conciliar_antes,
            o06_stop_cancelado_afuera, o07_tope_y_conciliacion, o08_pnl_acumulado, o09_papel_reduce_only,
-           o10_balas_con_historia, o11_corte_reintenta, o12_rsi2_no_reentra, o13_kucoin_parcial, o14_lote_a_cero,
+           o10_balas_con_historia, o11_corte_reintenta, o12_rsi2_no_reentra, o12b_rsi2_sigue_si_fue_reparto, o13_kucoin_parcial, o14_lote_a_cero,
            o15_recarga_solo_margen]
 
 

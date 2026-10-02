@@ -5,6 +5,7 @@
 import logging
 import logging.handlers
 import os
+import threading
 import time
 import traceback
 
@@ -21,7 +22,7 @@ from .motor import Motor
 from .telegram import AYUDA, Telegram
 from . import x as XM
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 log = logging.getLogger("cascada")
 CUATRO_H = pd.Timedelta(hours=4)
 ESPERA_CIERRE = 20          # segundos después del cierre de vela antes de decidir
@@ -45,19 +46,22 @@ def configurar_log():
 class Sistema:
     """Arma todas las piezas a partir de la configuración (lo usan el servicio y la línea de comandos)."""
 
-    def __init__(self, cfg=None, avisar=None, publico=None, ruta_db=None):
+    def __init__(self, cfg=None, avisar=None, publico=None, ruta_db=None, publico_control=None):
         self.cfg = cfg = cfg or C.cargar()
+        self.cerrojo = threading.RLock()      # ciclo, control y comandos que operan no se pisan
         self.db = Base(ruta_db or C.ruta_base(cfg))
         self.tg = Telegram(cfg.telegram_token, cfg.telegram_chat)
         self.avisar = avisar or self.tg.avisar
         self.pub = publico or Publico()
+        # el control de riesgo corre en su propio hilo con su propia conexión pública
+        self.pub_control = publico_control or (publico if publico is not None else Publico())
         self.x = XM.X(cfg.x, avisar=self.tg.avisar, max_dia=cfg.x_max_dia) if cfg.x_publicar else None
         self.datos = Datos(self.db, self.pub)
         w_bal = cfg.pesos.get("balas5", 0.0)
         if cfg.modo == "real":
             if not cfg.kucoin.get("apiKey"):
                 raise SystemExit("Modo real sin claves de KuCoin en .env")
-            self.bolsa = KucoinReal(cfg.kucoin, self.pub, cfg.apalancamiento_exchange)
+            self.bolsa = KucoinReal(cfg.kucoin, self.pub, cfg.apalancamiento_exchange, cfg.deslizamiento_max)
             real_balas = None
             if cfg.balas_real and cfg.kucoin_balas.get("apiKey"):
                 real_balas = EjecutorRealBalas(cfg.kucoin_balas)
@@ -73,7 +77,8 @@ class Sistema:
         if self.balas and self.db.get("balas_inicial") is None:
             self.db.set("balas_inicial", self.balas.st["W"])
         self.motor = Motor(cfg, self.db, self.datos, self.bolsa, self.pub, avisar=self.avisar,
-                           balas_patrimonio=lambda: self.balas.patrimonio() if self.balas else 0.0)
+                           balas_patrimonio=lambda: self.balas.patrimonio() if self.balas else 0.0,
+                           balas_plano=lambda: not (self.balas and self.balas.st.get("activo")))
 
     # ------------------------------------------------------------ piezas del ciclo
     def bases(self, t):
@@ -86,6 +91,10 @@ class Sistema:
         return sorted({s for s in u if s in mer} | {"BTC", "ETH"} | {L["simbolo"] for L in lib.values()})
 
     def ciclo(self, t):
+        with self.cerrojo:
+            return self._ciclo(t)
+
+    def _ciclo(self, t):
         cfg, db = self.cfg, self.db
         t0 = time.time()
         if t.hour == 0:
@@ -133,25 +142,53 @@ class Sistema:
         # 30 balas (subcuenta) con la vela de BTC
         if self.balas:
             if "BTC" in velas:
-                cierres = self.datos.v4("BTC", t, dias=60).c
+                # al arrancar, la historia larga reconstruye sus series diarias y semanales
+                cierres = self.datos.v4("BTC", t, dias=60 if self.balas.st.get("calentado") else 420).c
                 self.balas.procesar(t, velas["BTC"], cierres, funding_8h=self.pub.funding("BTC"),
                                     bloqueado=bool(db.get("bloqueado") or db.get("pausado")))
             else:
                 db.incidencia("alta", "velas_btc", f"Falta la vela de BTC de {t - CUATRO_H}: 30 balas no decidió este ciclo")
-        r = self.motor.ciclo(t, precios=precios, velas_cerradas={k: v[:3] for k, v in velas.items()})
-        if r.get("corte") and self.balas:
-            self.balas.forzar_salida(t, precios.get("BTC"), "corte")
+        self.motor.ciclo(t, precios=precios, velas_cerradas={k: v[:3] for k, v in velas.items()})
+        if db.get("liquidando"):
+            self.liquidar_todo(t, "corte", precios.get("BTC"))
         self.previsiones(precios)
         self.publicar_x(t)
         db.set("ultimo_ciclo_seg", round(time.time() - t0, 1))
         log.info("ciclo %s listo en %.0f s", t, time.time() - t0)
 
+    def liquidar_todo(self, t, motivo, px_btc=None):
+        """Cierra la cuenta principal y 30 balas. Mientras algo quede abierto el estado sigue en «liquidando» y se
+        reintenta en el próximo ciclo o control. Devuelve True si todo quedó plano."""
+        db = self.db
+        db.set("liquidando", True)
+        plano = self.motor.liquidar(t, motivo)
+        if self.balas and self.balas.st.get("activo"):
+            try:
+                self.balas.forzar_salida(t, px_btc or self.pub_control.precios(["BTC"]).get("BTC"), motivo)
+            except Exception as e:
+                log.exception("forzar salida de balas")
+                db.incidencia("critica", "liquidar_balas", f"No pude cerrar 30 balas: {e}"[:300])
+                self.avisar("critica", f"No pude cerrar 30 balas: {e}"[:400])
+        if plano and not (self.balas and self.balas.st.get("activo")):
+            self.motor.liquidar(t, motivo)          # confirma y sale del estado «liquidando»
+            return True
+        return False
+
     def control(self):
-        """Control entre ciclos: patrimonio a precio actual, caída, corte y previsiones."""
+        """Control entre ciclos (hilo propio): patrimonio a precio actual, caída, corte y previsiones."""
+        if not self.cerrojo.acquire(timeout=120):
+            self.db.incidencia("alta", "control_esperando", "El control de riesgo no pudo correr: el ciclo lleva más de 2 min ocupado")
+            return
+        try:
+            self._control()
+        finally:
+            self.cerrojo.release()
+
+    def _control(self):
         cfg, db = self.cfg, self.db
         lib = self.motor.libro()
         bases = sorted({L["simbolo"] for L in lib.values()} | {"BTC", "ETH"})
-        precios = self.pub.precios(bases)
+        precios = self.pub_control.precios(bases)
         db.set("precios", {**(db.get("precios") or {}), **precios})
         if self.bolsa.modo == "papel":
             self.bolsa.fijar_precios(precios)
@@ -160,14 +197,11 @@ class Sistema:
         t = _ahora().floor("min")
         er = riesgo.actualizar_patrimonio(db, t, E_main + E_bal, E_main, E_bal, lib, precios, cfg)
         if er["corte"] and not db.get("bloqueado"):
-            db.set("bloqueado", True)
-            db.incidencia("critica", "corte_caida", f"Caída {er['caida']:.1%} ≥ corte {cfg.corte_caida:.0%}: se cierra todo")
-            self.avisar("critica", f"CORTE POR CAÍDA: {er['caida']:.1%}. Cierro todo y bloqueo entradas. Reactivar con /reanudar.")
-            self.motor.mercados = self.pub.mercados()
-            self.motor.cerrar_todo(t, "corte")
-            if self.balas:
-                self.balas.forzar_salida(t, precios.get("BTC"), "corte")
-            self.publicar_x()
+            self.motor.iniciar_corte(er["caida"])
+        if db.get("liquidando"):
+            self.motor.precios.update(precios)
+            if self.liquidar_todo(t, "corte", precios.get("BTC")):
+                self.publicar_x()
         elif er["alerta"]:
             if db.incidencia("alta", "alerta_caida", f"Caída desde el máximo {er['caida']:.1%} ≥ alerta {cfg.alerta_caida:.0%}"):
                 self.avisar("alta", f"Alerta: caída desde el máximo {er['caida']:.1%}")
@@ -240,6 +274,8 @@ class Sistema:
             db.set("pausado", True)
             return "Pausado: no se abren lotes nuevos. Los abiertos siguen con sus salidas y stops."
         if nombre == "reanudar":
+            if db.get("liquidando"):
+                return "Todavía hay posiciones cerrándose (estado «liquidando»). Esperá a que quede todo plano."
             db.set("pausado", False)
             if db.get("bloqueado"):
                 db.set("bloqueado", False)
@@ -251,13 +287,14 @@ class Sistema:
             if not args or args[0].lower() != "si":
                 return "Esto cierra TODAS las posiciones de la cuenta principal y de 30 balas, y pausa. Confirmá con: /cerrar_todo si"
             t = _ahora().floor("min")
-            self.motor.mercados = self.pub.mercados()
-            self.motor.cerrar_todo(t, "manual")
-            if self.balas:
-                self.balas.forzar_salida(t, self.pub.precios(["BTC"]).get("BTC"), "manual")
             db.set("pausado", True)
+            with self.cerrojo:
+                self.motor.mercados = self.pub.mercados()
+                ok = self.liquidar_todo(t, "manual")
             self.publicar_x()
-            return "Cerré todo y quedó pausado. /reanudar para volver a operar."
+            if ok:
+                return "Cerré todo y quedó pausado. /reanudar para volver a operar."
+            return "Quedó algo sin cerrar: sigo intentando en cada control (cada 15 min) y aviso cuando esté plano. Pausado."
         if nombre == "nivel":
             c = self.cfg
             return (f"Nivel {c.nivel} (techo intrabarra {c.techo:.0%}), alerta {c.alerta_caida:.0%}, corte {c.corte_caida:.0%}\n"
@@ -280,6 +317,28 @@ class Sistema:
                 respuesta.put(f"Error: {e}")
 
 
+def hilo_control(s):
+    """Control de riesgo en su propio hilo: cada 15 min (cada minuto mientras haya un cierre total pendiente),
+    aunque el bucle principal esté ocupado o esperando."""
+    ultimo = 0.0
+    while True:
+        try:
+            espera = 60 if s.db.get("liquidando") else CONTROL_MIN * 60
+            if time.time() - ultimo >= espera:
+                ultimo = time.time()
+                s.control()
+                s.db.set("latido_control", time.time())
+                s.db.resolver("control_fallido")
+        except Exception as e:
+            log.error("control: %s", traceback.format_exc())
+            try:
+                if s.db.incidencia("alta", "control_fallido", f"Control de riesgo falló: {e}"[:300]):
+                    s.avisar("alta", f"El control de riesgo falló: {e}"[:400])
+            except Exception:
+                pass
+        time.sleep(20)
+
+
 def main():
     configurar_log()
     import queue
@@ -297,7 +356,8 @@ def main():
     s.avisar("info", f"Cascada {VERSION} iniciada · modo {cfg.modo} · {cfg.nivel} · patrimonio {E:,.2f} USDT"
              + (" · balas desactivada" if "balas5" in cfg.desactivadas else "") + f"\nTamaño de contrato: {info}")
     ultimo = pd.Timestamp(s.db.get("ultimo_t_ciclo") or "2000-01-01")
-    ultimo_control = 0.0
+    s.db.set("inicio", time.time())
+    threading.Thread(target=hilo_control, args=(s,), daemon=True, name="control").start()
     fallos = 0
     while True:
         try:
@@ -323,15 +383,6 @@ def main():
                     if fallos >= 8:
                         ultimo = t; fallos = 0        # se espera el próximo cierre
                     time.sleep(60)
-                ultimo_control = time.time()
-            elif time.time() - ultimo_control >= CONTROL_MIN * 60:
-                try:
-                    s.control()
-                    s.db.resolver("control_fallido")
-                except Exception as e:
-                    log.error("control: %s", traceback.format_exc())
-                    s.db.incidencia("media", "control_fallido", f"Control de riesgo falló: {e}"[:300])
-                ultimo_control = time.time()
         except Exception:
             log.error("bucle: %s", traceback.format_exc())
         time.sleep(5)
