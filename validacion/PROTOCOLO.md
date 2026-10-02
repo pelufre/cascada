@@ -119,4 +119,25 @@ vuelve a empezar con este protocolo y su único período de prueba válido es el
 
 ## Enmiendas
 
-(ninguna)
+Todas estas son de **2026-10-02, antes de tener los datos de perpetuos y antes de cualquier resultado de selección**.
+Para depurar el motor se corrió IS con las matrices viejas de spot (archivos `dev_*`); esas corridas no se usan para
+ninguna decisión.
+
+- **E1 · Algoritmo de búsqueda de pesos (precisa §5.2).** Una grilla completa de 0,025 en 7 dimensiones es imposible
+  de recorrer (41⁷ combinaciones). Se usa: 1500 direcciones al azar en el símplex (cada estrategia activa con
+  probabilidad 0,7, semilla 12345); para cada dirección, la mayor escala que cumple la restricción (bisección); redondeo
+  hacia abajo a la grilla de 0,025; descenso por coordenadas de ±0,025 desde las 15 mejores. Durante la búsqueda la
+  restricción se evalúa con 200 remuestreos (los mismos para todos los candidatos); el resultado final se verifica con
+  2000 (§5.4). Código: `validacion/pesos.py`.
+- **E2 · Cartera rápida para la búsqueda.** Durante la búsqueda la cartera se reconstruye cada 4 h con el retorno y la
+  **exposición real** (nocional / patrimonio) de cada estrategia corrida sola en el motor, con el reparto en cascada y el
+  tope total. No se deduce la posición del retorno (corrige M1). La verificación de §5.4 usa el motor completo.
+- **E3 · Corte y alerta por caída apagados en el backtest.** Son resguardos del servicio, no parte de la estrategia;
+  incluirlos haría depender los pesos del nivel elegido.
+- **E4 · 30 balas.** «Capital asignado al empezar cada campaña» se implementa así: mientras no hay campaña abierta, la
+  subcuenta se iguala a peso × patrimonio total (transferencia entre cuentas); durante la campaña no se toca.
+- **E5 · Corrida B.** Los símbolos sin contrato hoy en KuCoin (deslistados) usan tamaño 1 unidad y mínimo 1 unidad.
+- **E6 · Peor punto de la vela.** Para el rango pesimista, una posición cubierta por completo por su stop se valora en
+  el stop (no más allá), porque el stop limita la pérdida dentro de la vela.
+- **E7 · Funding de 30 balas.** El motor de balas aplica la tasa vigente de 8 h repartida por vela de 4 h (como en la
+  comprobación de paridad), con la serie de XBTUSDM y, antes de 2019-08, la de BTCUSDT.

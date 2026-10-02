@@ -274,7 +274,8 @@ class Papel:
     def enviar_orden(self, base, lado, contratos, reduce_only=False, client_oid=None, precio_ref=None):
         oid = client_oid or uuid.uuid4().hex
         q = self._acotar(base, lado, float(contratos), reduce_only)
-        px = self.st["ultimo"][base] * (1 + self.desliz if lado == "buy" else 1 - self.desliz)
+        d = self.desliz.get(base, self.desliz.get("_", 0.0)) if isinstance(self.desliz, dict) else self.desliz
+        px = self.st["ultimo"][base] * (1 + d if lado == "buy" else 1 - d)
         com = self._llenar(base, q if lado == "buy" else -q, px) if q > 0 else 0.0
         r = dict(estado="cerrada" if q >= contratos else "cancelada" if q > 0 else "rechazada", llenado=q,
                  precio=px if q > 0 else None, comision=com, orden_id=oid)
@@ -287,6 +288,15 @@ class Papel:
 
     def estado_orden(self, base, client_oid):
         return self.st["ordenes"].get(client_oid)
+
+    def aplicar_funding(self, base, tasa, precio):
+        """Cobra o paga el funding de la posición abierta (el largo paga si la tasa es positiva). Devuelve lo pagado."""
+        p = self.st["pos"].get(base)
+        if not p or not tasa:
+            return 0.0
+        pago = p["c"] * self.merc[base]["tam"] * precio * tasa
+        self.st["caja"] -= pago
+        return pago
 
     def enviar_stop(self, base, lado, contratos, precio, client_oid=None):
         oid = client_oid or uuid.uuid4().hex

@@ -273,5 +273,26 @@ class MomentumC40(Estrategia):
         return out
 
 
+# ------------------------------------------------------------------ BTC tendencia (alternativa a 30 balas en la validación)
+class TendenciaBTC(Estrategia):
+    """Largo 1× en BTC mientras el cierre diario esté sobre su SMA de 200 días. Sólo para la validación (protocolo §5.5)."""
+    tf = "1d"
+    nombre = "btc_tend"
+
+    def __init__(self, base="BTC", n=200):
+        self.base = base; self.n = n
+
+    def paso(self, t, datos, st, abiertos, universo, mercados):
+        d = datos.v1d(self.base, t)
+        if len(d) < self.n + 1:
+            return []
+        dentro = d.c.iat[-1] > d.c.iloc[-self.n:].mean()
+        cerr = st.get("_cerrados", {})
+        if dentro and (not st.get("id") or (st["id"] in cerr and cerr.get(st["id"]) == "asignacion") or not st.get("dentro")):
+            st["id"] = f"btc_tend_{pd.Timestamp(t):%Y%m%d}"
+        st["dentro"] = bool(dentro)
+        return [dict(id=st["id"], simbolo=self.base, lado=1, frac=1.0, reescalable=True)] if dentro else []
+
+
 def todas():
     return {e.nombre: e for e in (CortosAberration(), MomentumC40(), RSI2("BTC"), WR2(), Soldados(), RSI2("ETH"))}

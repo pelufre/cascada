@@ -28,6 +28,7 @@ class Config:
     prioridad: list = field(default_factory=lambda: list(PRIORIDAD))
     desactivadas: list = field(default_factory=list)   # estrategias apagadas (su peso no se reasigna)
     tope_nocional: float = 1.0
+    tope_con_balas_real: bool = False      # True: el tope descuenta el nocional real de 30 balas (validación, M7)
     alerta_caida: float = 0.20
     corte_caida: float = 0.30
     reajuste_fraccion: float = 0.10

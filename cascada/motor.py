@@ -41,11 +41,14 @@ def _ms(t):
 
 
 class Motor:
-    def __init__(self, cfg, db, datos, bolsa, publico, avisar=None, balas_patrimonio=None, balas_plano=None):
+    def __init__(self, cfg, db, datos, bolsa, publico, avisar=None, balas_patrimonio=None, balas_plano=None, balas_nocional=None):
         self.cfg = cfg; self.db = db; self.datos = datos; self.bolsa = bolsa; self.pub = publico
         self.avisar = avisar or (lambda nivel, texto: None)
         self.balas_patrimonio = balas_patrimonio or (lambda: 0.0)
         self.balas_plano = balas_plano or (lambda: True)
+        # con cfg.tope_con_balas_real el tope total descuenta el nocional real de 30 balas (protocolo de validación, M7);
+        # si no, reserva su peso como siempre
+        self.balas_nocional = balas_nocional
         self.est = todas()
         self.mercados = {}
         self.precios = {}
@@ -448,10 +451,15 @@ class Motor:
             self.db.resolver("bajo_minimo")
         return out
 
+    def _reserva_balas(self, E):
+        if getattr(self.cfg, "tope_con_balas_real", False) and self.balas_nocional:
+            return max(self.balas_nocional(), 0.0)
+        return self.cfg.pesos.get("balas5", 0.0) * E
+
     def _tope(self, obj, precios, E):
         """Si los objetivos superan 1,05 × tope × patrimonio (por movimiento de precios), recorta desde la última prioridad."""
         cfg = self.cfg
-        limite = 1.05 * (cfg.tope_nocional - cfg.pesos.get("balas5", 0)) * E
+        limite = 1.05 * (cfg.tope_nocional * E - self._reserva_balas(E))
 
         def valor(o):
             return o["c"] * self.mercados[o["sim"]]["tam"] * precios.get(o["sim"], 0)
@@ -556,7 +564,7 @@ class Motor:
         # 5) estrategias, asignación, objetivos y tope
         deseos = self._deseos(t, lib, universo)
         w_bal = cfg.pesos.get("balas5", 0.0)
-        presupuesto = cfg.tope_nocional * E - w_bal * E
+        presupuesto = cfg.tope_nocional * E - self._reserva_balas(E)
         prio = [p for p in cfg.prioridad if p != "balas5"]
         objetivos, resumen = asignar(E, presupuesto, cfg.pesos, prio, deseos, lib, precios, self.mercados)
         for est, r in resumen.items():
