@@ -79,7 +79,7 @@ class Resultado:
 
 class Corrida:
     def __init__(self, paquete, top50, resumen, universo, pesos, modo="IS", corrida="A", capital=None, desde=None,
-                 hasta=None, ruta_db=":memory:", funding_xbt=None, log_cada=500):
+                 hasta=None, ruta_db=":memory:", funding_xbt=None, log_cada=500, registro=False):
         self.lim = D.limite(modo)
         self.desde = pd.Timestamp(desde or D.INICIO_IS)
         self.hasta = min(pd.Timestamp(hasta), self.lim) if hasta else self.lim
@@ -87,6 +87,7 @@ class Corrida:
         self.capital = capital or (100_000.0 if corrida == "A" else 3000.0)
         self.paquete = paquete; self.archivos = (top50, resumen, universo)
         self.ruta_db = ruta_db; self.funding_xbt = funding_xbt; self.log_cada = log_cada
+        self.registro = registro      # P&L acumulado por lote y vela (para la cartera por lotes, enmienda E10)
 
     def _cfg(self):
         cfg = C.Config(pesos=dict(self.pesos), prioridad=list(PRIORIDAD), capital_papel=self.capital,
@@ -123,6 +124,7 @@ class Corrida:
         C_, H_, L_, O_ = M["c"], M["h"], M["l"], M["o"]
         fx = self.funding_xbt
         filas = []; pagado = 0.0
+        reg = []; fund_lote = {}; vistos = set()
         ts = pd.date_range(self.desde, self.hasta - H4, freq="4h")
         for k, t in enumerate(ts):
             pub.t = t
@@ -135,6 +137,7 @@ class Corrida:
                 rc = rh = rl = ro = None
             # cierre vigente para valorar: último cierre conocido (una vela faltante no es una pérdida)
             ult = pub.Cff.loc[:prev].iloc[-1] if len(pub.Cff.loc[:prev]) else None
+            lib_reg = motor.libro() if self.registro else None
             # funding de los perpetuos durante la vela que cerró (cada evento con el precio de ese momento)
             if F is not None:
                 for tf_, fila in F.loc[(F.index > prev) & (F.index <= t)].iterrows():
@@ -143,9 +146,16 @@ class Corrida:
                         if tasa == tasa and tasa is not None:
                             cu = ult.get(b) if ult is not None else None
                             px_f = float(cu) if cu is not None and cu == cu else papel.st["pos"][b]["px"]
-                            pagado += papel.aplicar_funding(b, float(tasa), px_f)
+                            pago = papel.aplicar_funding(b, float(tasa), px_f)
+                            pagado += pago
+                            if lib_reg and pago:
+                                ls = [L for L in lib_reg.values() if L["simbolo"] == b]
+                                tot = sum(abs(L["contratos"]) for L in ls)
+                                for L in ls:
+                                    fund_lote[L["id"]] = fund_lote.get(L["id"], 0.0) + pago * abs(L["contratos"]) / tot if tot else 0.0
             # patrimonio al cierre y peor punto de la vela con las posiciones que hubo durante la vela
             E_main = E_peor_main = papel.st["caja"]
+            c_sym, peor_sym = {}, {}
             for b, p in papel.st["pos"].items():
                 tam = merc[b]["tam"]
                 cu = ult.get(b) if ult is not None else None
@@ -156,6 +166,7 @@ class Corrida:
                 cubierto = sum(s["c"] for s in papel.st["stops"].values() if s.get("estado", "abierta") == "abierta" and s["base"] == b)
                 if topes and cubierto >= abs(p["c"]) - 1e-9:
                     peor = max(peor, min(topes)) if p["c"] > 0 else min(peor, max(topes))
+                c_sym[b], peor_sym[b] = c, peor
                 E_main += p["c"] * tam * (c - p["px"])
                 E_peor_main += p["c"] * tam * (peor - p["px"])
             E_bal = E_peor_bal = 0.0
@@ -165,6 +176,19 @@ class Corrida:
                 else:
                     E_bal = E_peor_bal = balas.patrimonio()
             E = E_main + E_bal
+            if self.registro:
+                ahora = set()
+                for i, L in lib_reg.items():
+                    ent = L["precio_entrada"]; q = L["lado"] * L["contratos"] * L["tam_contrato"]
+                    c = c_sym.get(L["simbolo"], ent); pe = peor_sym.get(L["simbolo"], c)
+                    f_ = fund_lote.get(i, 0.0); base = (L["pnl"] or 0.0) - f_
+                    reg.append((k, i, L["estrategia"], base + q * (c - ent), base + q * (pe - ent), abs(q) * c))
+                    ahora.add(i)
+                for i in vistos - ahora:          # cerrados en el ciclo anterior: P&L final
+                    L = db.filas("SELECT * FROM lotes WHERE id=?", (i,))[0]
+                    reg.append((k, i, L["estrategia"], (L["pnl"] or 0.0) - fund_lote.get(i, 0.0),
+                                (L["pnl"] or 0.0) - fund_lote.get(i, 0.0), 0.0))
+                vistos = ahora
             if E != E:
                 raise RuntimeError(f"Patrimonio NaN en {t}: caja={papel.st['caja']} pos={papel.st['pos']}")
             noc = {}
@@ -202,7 +226,11 @@ class Corrida:
         serie = serie.fillna(0.0)
         info = dict(segundos=round(time.time() - t0), desde=str(self.desde), hasta=str(self.hasta), corrida=self.corrida,
                     pesos=self.pesos, capital=self.capital, perp=self.paquete.perp)
-        return Resultado(serie, db, info)
+        res = Resultado(serie, db, info)
+        if self.registro:
+            res.lotes_vela = pd.DataFrame(reg, columns=["k", "lote", "estrategia", "cum", "cum_peor", "noc"])
+            res.lotes_vela["t"] = serie.index[res.lotes_vela.k.values]
+        return res
 
 
 def metricas(serie, desde=None, hasta=None):

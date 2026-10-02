@@ -38,10 +38,11 @@ def uno(args):
     from .datos import CORTE_IS
     fx = funding_xbt(a.get("xbt"), p, CORTE_IS) if est == "balas5" else None
     r = Corrida(p, a["top50"], a["resumen"], a["universo"], {est: 1.0}, modo="IS", corrida=corrida,
-                funding_xbt=fx, log_cada=0).correr()
+                funding_xbt=fx, log_cada=0, registro=True).correr()
     SALIDA.mkdir(exist_ok=True)
     pref = "dev_" if not p.perp else ""
     r.serie.to_pickle(SALIDA / f"{pref}is_{corrida}_{est}.pkl")
+    r.lotes_vela.to_pickle(SALIDA / f"{pref}is_{corrida}_{est}_lotes.pkl")
     m = metricas(r.serie)
     ops = r.operaciones()
     m.update(lotes=len(ops), segundos=r.info["segundos"],

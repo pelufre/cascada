@@ -166,3 +166,76 @@ def verificar(w, datos, L, n_rem=2000, semilla=SEMILLA):
         f = round(f - 0.01, 2)
         c, p = evaluar(w * f, datos, R)
     return w * f, c, p, f
+
+
+# ---- Enmienda E10: misma búsqueda (E1) evaluada con la cartera por lotes (validacion/cartera_lotes.py), en lote ----
+
+def evaluar_lotes(W, cart, R):
+    """W: (n, K). Devuelve tasas (n,) y p95 (n,) con los remuestreos R."""
+    W = np.atleast_2d(W)
+    ret, _ = cart.simular(W)
+    lr = np.add.reduceat(np.log1p(np.maximum(ret, -0.999999)), cart.inicios, axis=1)
+    años = (cart.idx[-1] - cart.idx[0]).total_seconds() / (365.25 * 86400)
+    tasas = np.exp(lr.sum(axis=1)) ** (1 / años) - 1
+    p95 = np.array([caida_p95(l, R) for l in lr])
+    return tasas, p95
+
+
+def buscar_lotes(cart, L, n_dir=1500, n_rem=200, top=15, semilla=SEMILLA, log=print):
+    K = len(cart.nombres)
+    R = remuestreos(len(cart.inicios), n_rem, semilla=semilla)
+    rng = np.random.default_rng(semilla)
+    D = []
+    for _ in range(n_dir):                       # mismo orden de sorteo que buscar()
+        activo = rng.random(K) < 0.7
+        if not activo.any():
+            continue
+        D.append(np.where(activo, rng.dirichlet(np.ones(K)), 0.0))
+    D = np.array(D)
+    hi = 1.0 / np.maximum(D.max(axis=1), 1e-9)
+    _, p = evaluar_lotes(D * hi[:, None], cart, R)
+    escala = np.where(p <= L, hi, 0.0)
+    pend = p > L
+    lo = np.zeros(len(D)); h = hi.copy()
+    for it in range(18):                         # bisección de todas las direcciones a la vez
+        m = (lo + h) / 2
+        _, p = evaluar_lotes(D[pend] * m[pend, None], cart, R)
+        ok = np.zeros(len(D), bool); ok[np.nonzero(pend)[0]] = p <= L
+        lo = np.where(pend & ok, m, lo); h = np.where(pend & ~ok, m, h)
+    escala = np.where(pend, lo, escala)
+    Wg = a_grilla(D * escala[:, None])
+    Wg = Wg[Wg.sum(axis=1) > 0]
+    c, p = evaluar_lotes(Wg, cart, R)
+    f = p <= L
+    cand = sorted(zip(c[f], p[f], Wg[f]), key=lambda z: -z[0])
+    log(f"  nivel {L:.0%}: {len(cand)} candidatos factibles; mejor inicial {cand[0][0]:.1%}" if cand else "  sin candidatos")
+    mejor = cand[0] if cand else (0.0, 0.0, np.zeros(K))
+    actuales = [list(z) for z in cand[:top]]
+    while actuales:                              # descenso por coordenadas ±0,025, todos los puntos a la vez
+        vec = []
+        for a_i, (c0, p0, w0) in enumerate(actuales):
+            for j in range(K):
+                for paso in (PASO, -PASO):
+                    w2 = w0.copy(); w2[j] = min(max(w2[j] + paso, 0.0), 1.0)
+                    if not np.allclose(w2, w0):
+                        vec.append((a_i, w2))
+        c2, p2 = evaluar_lotes(np.array([v[1] for v in vec]), cart, R)
+        nuevos = []
+        for a_i, (c0, p0, w0) in enumerate(actuales):
+            mejores = [(c2[i], p2[i], vec[i][1]) for i in range(len(vec)) if vec[i][0] == a_i and p2[i] <= L and c2[i] > c0 + 1e-9]
+            if mejores:
+                nuevos.append(list(max(mejores, key=lambda z: z[0])))
+            elif c0 > mejor[0]:
+                mejor = (c0, p0, w0)
+        actuales = nuevos
+    return mejor[2], mejor[0], mejor[1]
+
+
+def verificar_lotes(w, cart, L, n_rem=2000, semilla=SEMILLA):
+    """Chequeo con 2000 remuestreos; si no cumple, escala común exacta (§5.4)."""
+    R = remuestreos(len(cart.inicios), n_rem, semilla=semilla)
+    w = np.asarray(w, float)
+    fs = np.round(np.arange(1.0, 0.04, -0.01), 2)
+    c, p = evaluar_lotes(w[None, :] * fs[:, None], cart, R)
+    i = int(np.argmax(p <= L)) if np.any(p <= L) else len(fs) - 1
+    return w * fs[i], float(c[i]), float(p[i]), float(fs[i])

@@ -158,3 +158,20 @@ anteriores a 2024.
   (30 velas). No se rellenan: el motor no ve señales ni revisa stops en esas velas, valora con el último cierre conocido
   y el stop pendiente se ejecuta en la primera vela disponible (a la apertura si abrió más allá). BTC, ETH, ADA, BNB,
   DOGE y las demás están completas. Huecos por deslistado (LEND, BTT, LUNC, ICP) son reales y quedan como están.
+
+La siguiente es de **2026-10-02, sólo con IS y antes de abrir el OOS**:
+
+- **E10 · Cartera por lotes en lugar de la cartera rápida de E2 (corrige un error de implementación).** La verificación
+  §5.4 mostró que la cartera rápida no reproducía el motor (nivel 20 %: p95 19,9 % en la búsqueda, 32,7 % en el motor
+  completo). Dos causas: (a) escalaba cada estrategia con la exposición de su corrida sola, pero en el motor los lotes
+  fijos (ab_cortos, mom_alts, sold_btc) se dimensionan al abrir con peso × g × patrimonio de ese momento y después no
+  se achican, así que con pesos chicos un ganador crece contra el patrimonio total mucho más que en la corrida sola;
+  (b) ponía a 30 balas tercera en la cascada, cuando el motor reserva su nocional real antes que nadie. Se reemplaza
+  por `validacion/cartera_lotes.py`, que reconstruye la cartera lote por lote desde las corridas solas (P&L por lote y
+  vela registrado por el motor, capital de balas por campaña, presupuesto en el orden del asignador y recorte del tope
+  desde la última prioridad). Contra el motor completo en 7 juegos de pesos ya corridos: tasa, p95 y caída histórica a
+  ≤ 0,4 puntos; correlación de retornos diarios 0,9997. La búsqueda (E1) es la misma, evaluada en lote; el descenso
+  toma en cada paso la mejor mejora entre los vecinos ±0,025. La verificación de 2000 remuestreos y la de §5.4 escalan
+  todos los pesos por el mismo factor exacto (sin volver a redondear a la grilla), y §5.4 busca el mayor factor que
+  cumple con el motor completo. La selección hecha con E2 se descarta; queda en `resultados/e2_cartera_rapida/` como
+  registro (con escala común el nivel 10 % daba 7 % anual en IS y el 20 %, 20 %).
