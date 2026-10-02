@@ -41,7 +41,7 @@ class Publico:
         sym = ccxt_sym(base); paso = TF_MS[tf]; out = []
         ahora = int(time.time() * 1000) if hasta_ms is None else hasta_ms
         t = desde_ms
-        while t < ahora - paso:
+        while t <= ahora - paso:        # la vela que abre en ahora-paso ya cerró
             lote = self.ex.fetch_ohlcv(sym, tf, since=t, limit=200)
             if not lote:
                 break

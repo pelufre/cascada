@@ -4,7 +4,9 @@ import argparse, base64, json, queue, time, urllib.request
 import pandas as pd
 from cascada import config as C
 from cascada.db import Base
+from cascada import principal as P
 from cascada.principal import Sistema
+P.REINTENTOS_VELAS = ()
 from cascada import web
 from tests.paridad import PublicoFalso, cargar_datos
 

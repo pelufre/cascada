@@ -25,6 +25,7 @@ VERSION = "1.0.0"
 log = logging.getLogger("cascada")
 CUATRO_H = pd.Timedelta(hours=4)
 ESPERA_CIERRE = 20          # segundos después del cierre de vela antes de decidir
+REINTENTOS_VELAS = (30, 60)   # segundos de espera si falta la vela recién cerrada
 CONTROL_MIN = 15            # minutos entre controles de patrimonio y riesgo
 
 
@@ -97,7 +98,21 @@ class Sistema:
             if db.incidencia("alta", "universo", f"No pude bajar el top 50 de CoinMarketCap: {e}"[:300]):
                 self.avisar("alta", f"No pude bajar el top 50: {e}"[:300])
         bases = self.bases(t)
-        errores = self.datos.actualizar(bases, hasta_ms=int(t.value // 10**6))
+        hasta = int(t.value // 10**6)
+        errores = self.datos.actualizar(bases, hasta_ms=hasta)
+        # si a alguna le falta la vela recién cerrada (el exchange a veces tarda), reintenta un par de veces
+        for espera in REINTENTOS_VELAS:
+            faltan = [b for b in bases if (self.db.ultimo_ts(b, "4h") or 0) < hasta - 4 * 3600_000]
+            if not faltan:
+                break
+            time.sleep(espera)
+            errores += self.datos.actualizar(faltan, hasta_ms=hasta)
+        faltan = [b for b in bases if (self.db.ultimo_ts(b, "4h") or 0) < hasta - 4 * 3600_000]
+        if faltan:
+            db.incidencia("media", "velas_atrasadas", f"Sin la vela de {t - CUATRO_H:%d/%m %H:%M}: " + ", ".join(faltan)[:250])
+        else:
+            db.resolver("velas_atrasadas")
+            db.resolver("velas_btc")
         if errores:
             db.incidencia("media", "velas", "Sin velas nuevas para: " + ", ".join(b for b, _ in errores)[:300])
         else:
