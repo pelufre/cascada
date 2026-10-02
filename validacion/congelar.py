@@ -25,7 +25,7 @@ def main(a):
         raise SystemExit(f"Nivel {a.nivel} no está en la selección: {list(niveles)}")
     out = dict(nivel_elegido=a.nivel, variante_balas=sel["decision_balas"]["elegida"], pesos_por_nivel=niveles,
                seleccion_sha256=hashlib.sha256(sel_p.read_bytes()).hexdigest(),
-               verificacion_motor={n: dict(intentos=v["intentos"], resultados=v["resultados"]) for n, v in ver.items()})
+               verificacion_motor={n: dict(factor=v["factor"], cumple=v["cumple"], busqueda=v["busqueda"], resultados=v["resultados"]) for n, v in ver.items()})
     (RAIZ / "pesos_congelados.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     print(json.dumps(out, indent=1, ensure_ascii=False))
 
