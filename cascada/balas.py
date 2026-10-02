@@ -178,39 +178,4 @@ class Balas:
         self.avisar("alta", f"30 balas: campaña cerrada por {motivo}, resultado {pnl:+.1%} de la subcuenta")
 
 
-class EjecutorRealBalas:
-    """Traducción a KuCoin (subcuenta): compra BTC con USDT para el margen, lo pasa a futuros y opera XBTUSDM
-    (1 contrato = 1 USD). DESHABILITADO por defecto: probar primero con montos mínimos."""
-
-    def __init__(self, cred_spot_futuros):
-        import ccxt
-        self.spot = ccxt.kucoin({**cred_spot_futuros, "enableRateLimit": True})
-        self.fut = ccxt.kucoinfutures({**cred_spot_futuros, "enableRateLimit": True})
-        self.sym = "BTC/USD:BTC"
-
-    def _comprar_btc_y_transferir(self, usd, px):
-        btc = usd / px
-        self.spot.create_order("BTC/USDT", "market", "buy", None, None, {"funds": round(usd, 2)})
-        self.spot.transfer("BTC", round(btc * 0.998, 8), "trade", "future")
-
-    def aportar_margen(self, usd, px):
-        self._comprar_btc_y_transferir(usd, px)
-
-    def abrir(self, usd_margen, nocional_usd, px):
-        self._comprar_btc_y_transferir(usd_margen, px)
-        self.fut.create_order(self.sym, "market", "buy", int(nocional_usd), None, {"marginMode": "cross"})
-
-    def recargar(self, usd_margen, nocional_usd, px):
-        self._comprar_btc_y_transferir(usd_margen, px)
-        if int(nocional_usd) >= 1:
-            self.fut.create_order(self.sym, "market", "buy", int(nocional_usd), None, {"marginMode": "cross"})
-
-    def cerrar(self, px):
-        pos = [p for p in self.fut.fetch_positions([self.sym]) if float(p.get("contracts") or 0)]
-        for p in pos:
-            self.fut.create_order(self.sym, "market", "sell", float(p["contracts"]), None, {"reduceOnly": True})
-        bal = self.fut.fetch_balance({"currency": "BTC"})
-        libre = float(bal["free"].get("BTC") or 0)
-        if libre > 0:
-            self.fut.transfer("BTC", libre, "future", "trade")
-            self.spot.create_order("BTC/USDT", "market", "sell", round(libre * 0.999, 8))
+from .balas_real import EjecutorRealBalas  # noqa: E402,F401  (ejecución real, ver balas_real.py)

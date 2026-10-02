@@ -4,6 +4,7 @@
   estado               resumen como el de /estado
   aporte MONTO [nota]  registra un depósito (+) o retiro (−) para que no cuente como ganancia o caída
   reiniciar-papel      borra la base (sólo modo papel) para empezar de cero
+  balas-prueba [USDT]  prueba la ejecución real de 30 balas en la subcuenta con montos mínimos (12 USDT por defecto)
   x-prueba             comprueba las credenciales de X y publica un post de prueba
   telegram-chat        muestra el chat_id de quien le escribió al bot (para TELEGRAM_CHAT_ID)
 """
@@ -79,6 +80,94 @@ def verificar():
     return ok
 
 
+def prueba_balas(usdt=12.0, todo_si=False):
+    """Prueba guiada de la ejecución real de 30 balas con montos mínimos. Se detiene antes de cada paso."""
+    import json
+    import logging
+    logging.basicConfig(level=logging.INFO, format="   · %(message)s")
+    cfg = C.cargar()
+    if not cfg.kucoin_balas.get("apiKey"):
+        sys.exit("Faltan KUCOIN_BALAS_KEY / KUCOIN_BALAS_SECRET / KUCOIN_BALAS_PASSPHRASE en .env")
+    from .balas_real import EjecutorRealBalas
+    from .balas import P
+    ej = EjecutorRealBalas(cfg.kucoin_balas)
+    reg = []
+
+    def ver(titulo, x):
+        txt = json.dumps(x, default=str, indent=1, ensure_ascii=False)
+        print(f"\n== {titulo}\n{txt}")
+        reg.append((titulo, x))
+
+    def paso(texto):
+        print(f"\n>>> {texto}")
+        if todo_si:
+            return True
+        r = input("    ¿Sigo? (s = sí / n = cortar): ").strip().lower()
+        if r != "s":
+            print("Cortado. Si quedó algo abierto, corré de nuevo y elegí sólo el cierre, o cerralo a mano en KuCoin.")
+            return False
+        return True
+
+    def fallo(e):
+        print(f"\n!!! FALLÓ: {e}")
+        reg.append(("FALLO", str(e)))
+        resumen()
+        sys.exit(1)
+
+    def resumen():
+        print("\n================ RESUMEN PARA MANDAR (no contiene claves) ================")
+        for t, x in reg:
+            print(f"- {t}: {json.dumps(x, default=str, ensure_ascii=False)[:600]}")
+        print("========================================================================")
+
+    print(f"Prueba de 30 balas en la subcuenta. Usa unos {usdt:.0f} USDT y deja todo en USDT al final.")
+    try:
+        ver("Saldos iniciales", ej.saldos()); ver("Posición inicial", ej.posicion())
+    except Exception as e:
+        fallo(f"no pude leer la subcuenta (claves, permisos o IP): {e}")
+    try:
+        if paso("1/7 Si hay USDT en la cuenta principal (main) de la subcuenta, pasarlo a trading"):
+            ver("USDT movido main→trade", ej.usdt_a_trading())
+        else:
+            return
+        if not paso(f"2/7 Comprar BTC por {usdt * 0.7:.2f} USDT y pasarlo a futuros (margen inicial)"):
+            return
+        btc = ej.aportar_margen(usdt * 0.7)
+        ver("BTC comprado y transferido", dict(btc=btc, ruta=str(ej.ruta_ida[1:]) if ej.ruta_ida else None))
+        ver("Saldos", ej.saldos())
+        if not paso("3/7 Poner margen cruzado en XBTUSDM y abrir 10 contratos (10 USD) a mercado"):
+            return
+        ver("Modo de margen", ej.margen_cruzado())
+        f = ej.contratos(10, "buy")
+        ver("Orden de apertura", dict(estado=f.get("status"), precio=f.get("average"), contratos=f.get("filled")))
+        time.sleep(2)
+        pos = ej.posicion(); ver("Posición", pos)
+        if pos:
+            px = float(pos.get("entrada") or f.get("average") or 0)
+            mb = ej.btc_futuros_libre()
+            b = ej.saldos().get("futuros_BTC", {})
+            tot = b.get("total", 0) if isinstance(b, dict) else 0
+            ntn = abs(pos["contratos"])
+            liq_sis = ntn * (1 + P["MMR"]) / (tot + ntn / px) if px else None
+            ver("Liquidación: KuCoin vs fórmula del sistema", dict(kucoin=pos.get("liquidacion"), sistema=liq_sis,
+                                                                  margen_btc=tot, nota="con ~1,2x las dos deberían rondar la mitad del precio y parecerse entre sí"))
+        if not paso(f"4/7 Recarga: comprar BTC por {usdt * 0.3:.2f} USDT, pasarlo a futuros y sumar 5 contratos"):
+            return
+        ej.recargar(usdt * 0.3, 5)
+        time.sleep(2)
+        ver("Posición tras recarga", ej.posicion()); ver("Saldos", ej.saldos())
+        if not paso("5/7 Cerrar: vender todos los contratos, pasar el BTC a spot y venderlo por USDT"):
+            return
+        ej.cerrar()
+        time.sleep(3)
+        ver("Posición final (debe ser null)", ej.posicion())
+        ver("6/7 Saldos finales", ej.saldos())
+        print("\n7/7 Listo. Revisá en KuCoin → Órdenes que estén las operaciones y que no quede posición abierta.")
+    except Exception as e:
+        fallo(e)
+    resumen()
+
+
 def main(argv=None):
     a = argv if argv is not None else sys.argv[1:]
     if not a or a[0] in ("-h", "--help", "ayuda"):
@@ -86,6 +175,9 @@ def main(argv=None):
     cmd = a[0]
     if cmd == "verificar":
         sys.exit(0 if verificar() else 1)
+    if cmd == "balas-prueba":
+        prueba_balas(float(a[1]) if len(a) > 1 else 12.0, "--si" in a)
+        return
     if cmd == "x-prueba":
         from .x import X
         cfg = C.cargar(); x = X(cfg.x)
