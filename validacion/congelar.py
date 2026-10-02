@@ -14,12 +14,18 @@ RAIZ = Path(__file__).resolve().parent
 def main(a):
     sel_p = RAIZ / "resultados" / "seleccion_is.json"
     sel = json.loads(sel_p.read_text())
-    ver = sel.get("verificacion_motor", {})
-    niveles = {n: (ver[n]["pesos"] if n in ver else d["pesos"]) for n, d in sel["niveles"].items()}
+    ver = {}
+    for n in sel["niveles"]:
+        f = RAIZ / "resultados" / f"verificacion_{n}.json"
+        if not f.exists():
+            raise SystemExit(f"Falta la verificación con el motor completo del nivel {n} (§5.4): {f.name}")
+        ver[n] = json.loads(f.read_text())
+    niveles = {n: ver[n]["pesos"] for n in sel["niveles"]}
     if a.nivel not in niveles:
         raise SystemExit(f"Nivel {a.nivel} no está en la selección: {list(niveles)}")
     out = dict(nivel_elegido=a.nivel, variante_balas=sel["decision_balas"]["elegida"], pesos_por_nivel=niveles,
-               seleccion_sha256=hashlib.sha256(sel_p.read_bytes()).hexdigest())
+               seleccion_sha256=hashlib.sha256(sel_p.read_bytes()).hexdigest(),
+               verificacion_motor={n: dict(intentos=v["intentos"], resultados=v["resultados"]) for n, v in ver.items()})
     (RAIZ / "pesos_congelados.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     print(json.dumps(out, indent=1, ensure_ascii=False))
 

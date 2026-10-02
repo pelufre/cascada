@@ -28,7 +28,6 @@ def main(a):
     sel = json.loads((RES / f"{pref}seleccion_is.json").read_text())
     p = Paquete(a.datos)
     fx = funding_xbt(a.xbt, p, CORTE_IS)
-    ver = sel.setdefault("verificacion_motor", {})
     for nivel in a.niveles.split(","):
         L = int(nivel) / 100
         w = dict(sel["niveles"][nivel]["pesos"])
@@ -48,8 +47,8 @@ def main(a):
                 break
             f = max(0.5, min(0.98, L / res["A"]["p95"]))
             w = {k: float(v * f) for k, v in w.items()}      # escala exacta (§5.4), sin redondear a la grilla
-        ver[nivel] = dict(pesos=w, resultados=res, intentos=intento + 1)
-    (RES / f"{pref}seleccion_is.json").write_text(json.dumps(sel, indent=1, ensure_ascii=False))
+        (RES / f"{pref}verificacion_{nivel}.json").write_text(json.dumps(
+            dict(nivel=nivel, pesos=w, resultados=res, intentos=intento + 1), indent=1, ensure_ascii=False))
 
 
 if __name__ == "__main__":
