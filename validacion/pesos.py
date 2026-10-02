@@ -162,7 +162,7 @@ def verificar(w, datos, L, n_rem=2000, semilla=SEMILLA):
     w = np.asarray(w, float)
     c, p = evaluar(w, datos, R)
     f = 1.0
-    while p > L and f > 0.05:
-        f -= 0.01
-        c, p = evaluar(a_grilla(w * f), datos, R)
-    return (a_grilla(w * f) if f < 1.0 else w), c, p, f
+    while p > L and f > 0.05:          # escala proporcional exacta (§5.4); redondear a la grilla aquí bajaría cada peso un paso
+        f = round(f - 0.01, 2)
+        c, p = evaluar(w * f, datos, R)
+    return w * f, c, p, f
