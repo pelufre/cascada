@@ -7,3 +7,4 @@ __pycache__/
 caddy_data/
 caddy_config/
 respaldos/
+validacion/resultados/dev_*

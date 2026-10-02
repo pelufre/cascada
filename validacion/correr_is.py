@@ -53,7 +53,7 @@ def uno(args):
 
 def main(a):
     a = vars(a)
-    ests = a["solo"].split(",") if a["solo"] else [e for e in PRIORIDAD]
+    ests = a["solo"].split(",") if a["solo"] else [e for e in PRIORIDAD if not e.startswith("hold_")]
     trabajos = [(e, c, a) for c in a["corrida"].split(",") for e in ests]
     out = {}
     with ProcessPoolExecutor(a["procesos"]) as ex:

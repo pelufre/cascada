@@ -17,7 +17,7 @@ from cascada.balas import Balas
 from cascada.bolsa import Papel
 from cascada.datos import Datos
 from cascada.db import Base
-from cascada.estrategias import TendenciaBTC, todas
+from cascada.estrategias import Mantener, TendenciaBTC, todas
 from cascada.motor import Motor
 
 from . import datos as D
@@ -25,7 +25,7 @@ from . import datos as D
 H4 = pd.Timedelta(hours=4)
 COMISION = 0.0006
 DESLIZ = {"BTC": 0.0005, "ETH": 0.0005, "_": 0.0010}
-PRIORIDAD = ["ab_cortos", "mom_alts", "balas5", "btc_tend", "rsi2_btc", "wr2", "sold_btc", "rsi2_eth"]
+PRIORIDAD = ["ab_cortos", "mom_alts", "balas5", "btc_tend", "rsi2_btc", "wr2", "sold_btc", "rsi2_eth", "hold_btc", "hold_eth"]
 
 
 class PublicoBT:
@@ -116,6 +116,9 @@ class Corrida:
         est = {k: v for k, v in todas().items() if self.pesos.get(k, 0) > 0}
         if self.pesos.get("btc_tend", 0) > 0:
             est["btc_tend"] = TendenciaBTC()
+        for b in ("BTC", "ETH"):
+            if self.pesos.get(f"hold_{b.lower()}", 0) > 0:
+                est[f"hold_{b.lower()}"] = Mantener(b)
         motor.est = est
         C_, H_, L_, O_ = M["c"], M["h"], M["l"], M["o"]
         fx = self.funding_xbt
@@ -129,6 +132,8 @@ class Corrida:
                 rc, rh, rl, ro = C_.loc[prev], H_.loc[prev], L_.loc[prev], O_.loc[prev]
             else:
                 rc = rh = rl = ro = None
+            # cierre vigente para valorar: último cierre conocido (una vela faltante no es una pérdida)
+            ult = pub.Cff.loc[:prev].iloc[-1] if len(pub.Cff.loc[:prev]) else None
             # funding de los perpetuos durante la vela que cerró (cada evento con el precio de ese momento)
             if F is not None and rc is not None:
                 for tf_, fila in F.loc[(F.index > prev) & (F.index <= t)].iterrows():
@@ -140,8 +145,10 @@ class Corrida:
             E_main = E_peor_main = papel.st["caja"]
             for b, p in papel.st["pos"].items():
                 tam = merc[b]["tam"]
-                c = float(rc.get(b)) if rc is not None and rc.get(b) == rc.get(b) else p["px"]
-                peor = (float(rl.get(b)) if p["c"] > 0 else float(rh.get(b))) if rc is not None and rl.get(b) == rl.get(b) else c
+                cu = ult.get(b) if ult is not None else None
+                c = float(cu) if cu is not None and cu == cu else p["px"]
+                tiene = rc is not None and rc.get(b) == rc.get(b) and rl.get(b) == rl.get(b)
+                peor = (float(rl.get(b)) if p["c"] > 0 else float(rh.get(b))) if tiene else c
                 topes = [s["px"] for s in papel.st["stops"].values() if s.get("estado", "abierta") == "abierta" and s["base"] == b]
                 cubierto = sum(s["c"] for s in papel.st["stops"].values() if s.get("estado", "abierta") == "abierta" and s["base"] == b)
                 if topes and cubierto >= abs(p["c"]) - 1e-9:
@@ -157,7 +164,8 @@ class Corrida:
             E = E_main + E_bal
             noc = {}
             for L in motor.libro().values():
-                px = float(rc.get(L["simbolo"])) if rc is not None and rc.get(L["simbolo"]) == rc.get(L["simbolo"]) else L["precio_entrada"]
+                cu = ult.get(L["simbolo"]) if ult is not None else None
+                px = float(cu) if cu is not None and cu == cu else L["precio_entrada"]
                 noc[L["estrategia"]] = noc.get(L["estrategia"], 0.0) + abs(L["contratos"]) * L["tam_contrato"] * px
             if balas and balas.st.get("activo") and rc is not None:
                 noc["balas5"] = balas.st["ntn"] * balas.st["W"]

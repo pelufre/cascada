@@ -294,5 +294,19 @@ class TendenciaBTC(Estrategia):
         return [dict(id=st["id"], simbolo=self.base, lado=1, frac=1.0, reescalable=True)] if dentro else []
 
 
+class Mantener(Estrategia):
+    """Comprar y mantener 1× (sólo comparación en la validación, protocolo §6)."""
+    tf = "1d"
+
+    def __init__(self, base="BTC"):
+        self.base = base; self.nombre = f"hold_{base.lower()}"
+
+    def paso(self, t, datos, st, abiertos, universo, mercados):
+        st.setdefault("id", f"{self.nombre}_{pd.Timestamp(t):%Y%m%d}")
+        if st["id"] in st.get("_cerrados", {}):
+            st["id"] = f"{self.nombre}_{pd.Timestamp(t):%Y%m%d}"
+        return [dict(id=st["id"], simbolo=self.base, lado=1, frac=1.0, reescalable=True)]
+
+
 def todas():
     return {e.nombre: e for e in (CortosAberration(), MomentumC40(), RSI2("BTC"), WR2(), Soldados(), RSI2("ETH"))}
