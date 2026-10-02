@@ -141,3 +141,20 @@ ninguna decisión.
   el stop (no más allá), porque el stop limita la pérdida dentro de la vela.
 - **E7 · Funding de 30 balas.** El motor de balas aplica la tasa vigente de 8 h repartida por vela de 4 h (como en la
   comprobación de paridad), con la serie de XBTUSDM y, antes de 2019-08, la de BTCUSDT.
+
+Las siguientes son de **2026-10-02, con el paquete de perpetuos recibido (MANIFIESTO creado 2026-10-02 21:26 UTC) y
+antes de correr ninguna estrategia sobre él**. Para decidirlas sólo se miraron fechas de inicio y huecos de velas
+anteriores a 2024.
+
+- **E8 · Inicio de IS en 2020-01-01 (precisa §2 y §3).** El archivo público de Binance (data.binance.vision) publica
+  velas de futuros USDT-M recién desde 2020-01; BTCUSDT y ETHUSDT existían desde 2019-09/11 pero esas velas no están, y
+  ningún otro perpetuo USDT con historia anterior es accesible. Por eso IS pasa a ser **2020-01-01 → 2023-12-31**
+  (cuatro años; incluye la caída de marzo 2020, la suba de 2021, el mercado bajista de 2022 y 2023). El OOS no cambia.
+  Los tres símbolos que la fuente corta exactamente en 2020-01-01 (BTC, ETH, BCH) se precalientan con sus velas spot
+  de Binance desde 2018-06-01 (archivo `validacion/datos/precalentamiento_spot_4h.csv`, versionado en el repositorio):
+  sólo alimentan indicadores, no se opera antes de 2020-01-01. Ningún otro símbolo recibe velas spot. Empalme
+  verificado: último cierre spot 7195,2 / primera apertura del perpetuo 7189,4 (BTC).
+- **E9 · Huecos del paquete.** 33 alts (FIL…ZIL) no tienen velas los días 2022-02-26 a 02-28 y 2022-04-01 a 04-02
+  (30 velas). No se rellenan: el motor no ve señales ni revisa stops en esas velas, valora con el último cierre conocido
+  y el stop pendiente se ejecuta en la primera vela disponible (a la apertura si abrió más allá). BTC, ETH, ADA, BNB,
+  DOGE y las demás están completas. Huecos por deslistado (LEND, BTT, LUNC, ICP) son reales y quedan como están.

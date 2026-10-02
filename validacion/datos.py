@@ -12,11 +12,12 @@ from pathlib import Path
 
 import pandas as pd
 
-INICIO_IS = pd.Timestamp("2019-01-01")
+INICIO_IS = pd.Timestamp("2020-01-01")          # enmienda E8: la fuente de perpetuos empieza ahí
 CORTE_IS = pd.Timestamp("2024-01-01")          # exclusivo: IS = [2019-01-01, 2024-01-01)
 FIN_OOS = pd.Timestamp("2026-10-01")
 RAIZ = Path(__file__).resolve().parent
 CONGELADO = RAIZ / "pesos_congelados.json"
+PRECAL = RAIZ / "datos" / "precalentamiento_spot_4h.csv"   # E8: BTC, ETH y BCH spot antes de 2020 (sólo indicadores)
 
 
 def _sha(p):
@@ -71,6 +72,21 @@ class Paquete:
         out = {}
         for k, n in (("o", "_aperturas"), ("h", "_maximos"), ("l", "_minimos"), ("c", "_cierres"), ("v", "_volumen_usdt")):
             out[k] = self._leer(f"{n}{self.suf}.csv", hasta_vela + pd.Timedelta(seconds=1))
+        if self.perp and PRECAL.exists():
+            out = self._precalentar(out)
+        return out
+
+    def _precalentar(self, out):
+        """Enmienda E8: antes de la primera vela del paquete, velas spot de los símbolos que la fuente cortó en esa fecha.
+        No se opera antes de INICIO_IS; sólo alimentan indicadores."""
+        w = pd.read_csv(PRECAL, index_col=0, parse_dates=True)
+        t0 = out["c"].index.min()
+        w = w[w.index < t0]
+        cortados = [b for b in w.base.unique() if b in out["c"].columns and out["c"][b].first_valid_index() == t0]
+        w = w[w.base.isin(cortados)]
+        for k in out:
+            previo = w.pivot(columns="base", values=k).reindex(columns=out[k].columns)
+            out[k] = pd.concat([previo, out[k]]).sort_index()
         return out
 
     def funding(self, hasta):

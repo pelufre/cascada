@@ -8,3 +8,5 @@ caddy_data/
 caddy_config/
 respaldos/
 validacion/resultados/dev_*
+!validacion/datos/
+!validacion/datos/precalentamiento_spot_4h.csv
