@@ -47,7 +47,7 @@ def main(a):
             if res["A"]["p95"] <= L or intento == 3:
                 break
             f = max(0.5, min(0.98, L / res["A"]["p95"]))
-            w = {k: float(P.a_grilla(v * f)) for k, v in w.items()}
+            w = {k: float(v * f) for k, v in w.items()}      # escala exacta (§5.4), sin redondear a la grilla
         ver[nivel] = dict(pesos=w, resultados=res, intentos=intento + 1)
     (RES / f"{pref}seleccion_is.json").write_text(json.dumps(sel, indent=1, ensure_ascii=False))
 
