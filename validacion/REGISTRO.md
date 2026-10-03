@@ -14,3 +14,4 @@
 | 2026-10-02 | Selección de pesos IS con E10 (1500 direcciones): 30 balas se queda (41,6 % vs 35,4 %); niveles 10/20/25/30 → 17,1/38,1/51,7/68,4 % anual IS | este commit |
 | 2026-10-02 | Verificación §5.4 con el motor completo (A y B): los cuatro niveles cumplen con factor 1 (B: 16,5/37,4/50,6/68,6 % anual IS; p95 9,4/19,2/24,2/29,6 %) | este commit |
 | 2026-10-02 | Nivel elegido por el usuario: 30 %. Pesos congelados (pesos_congelados.json sha256 5da5dcd4398b996a…) | este commit |
+| 2026-10-02 | Evaluación OOS (pesos 54ddf76): APROBADA | resultado_oos.json sha256 5066df9d90a0bc42 |
