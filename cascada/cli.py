@@ -125,6 +125,7 @@ def prueba_balas(usdt=12.0, todo_si=False):
     print(f"Prueba de 30 balas en la subcuenta. Usa unos {usdt:.0f} USDT y deja todo en USDT al final.")
     try:
         ver("Saldos iniciales", ej.saldos()); ver("Posición inicial", ej.posicion())
+        ver("Estado que lee el sistema (USDT, BTC spot, margen BTC realizado, contratos, entrada)", ej.estado())
     except Exception as e:
         fallo(f"no pude leer la subcuenta (claves, permisos o IP): {e}")
     try:
@@ -158,12 +159,13 @@ def prueba_balas(usdt=12.0, todo_si=False):
         ej.recargar(usdt * 0.3, 5)
         time.sleep(2)
         ver("Posición tras recarga", ej.posicion()); ver("Saldos", ej.saldos())
+        ver("Estado que lee el sistema", ej.estado())
         if not paso("5/7 Cerrar: vender todos los contratos, pasar el BTC a spot y venderlo por USDT"):
             return
         ej.cerrar()
         time.sleep(3)
         ver("Posición final (debe ser null)", ej.posicion())
-        ver("6/7 Saldos finales", ej.saldos())
+        ver("6/7 Saldos finales", ej.saldos()); ver("Estado que lee el sistema (debe quedar sin contratos ni BTC)", ej.estado())
         print("\n7/7 Listo. Revisá en KuCoin → Órdenes que estén las operaciones y que no quede posición abierta.")
     except Exception as e:
         fallo(e)

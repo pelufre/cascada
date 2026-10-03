@@ -15,15 +15,15 @@ from . import config as C
 from . import estadisticas as ES
 from . import riesgo
 from .balas import Balas, EjecutorRealBalas
-from .bolsa import KucoinReal, Papel, Publico
+from .bolsa import INVERSO, KucoinReal, Papel, Publico
 from .datos import Datos, VolumenPerp
 from .db import Base
 from .motor import Motor
-from .subcuenta import TransferidorSubcuenta, planificar
+from .subcuenta import TransferenciaIncierta, TransferidorSubcuenta, planificar
 from .telegram import AYUDA, Telegram
 from . import x as XM
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 log = logging.getLogger("cascada")
 CUATRO_H = pd.Timedelta(hours=4)
 ESPERA_CIERRE = 20          # segundos después del cierre de vela antes de decidir
@@ -74,7 +74,7 @@ class Sistema:
                     cfg.desactivadas.append("balas5")
             self.balas = Balas(self.db, cfg.capital_balas_real, real=real_balas, avisar=self.avisar) if real_balas else None
             if real_balas and cfg.balas_transferir:
-                self.transferidor = TransferidorSubcuenta(cfg.kucoin_balas_uid, real_balas, cred_principal=cfg.kucoin)
+                self.transferidor = TransferidorSubcuenta(cfg.kucoin_balas_uid, real_balas, cred_principal=cfg.kucoin, db=self.db)
         else:
             cap = cfg.capital_papel
             self.bolsa = Papel(self.db, self.pub.mercados(), capital=cap * (1 - w_bal), comision=cfg.comision,
@@ -151,19 +151,23 @@ class Sistema:
             if len(d) and d.index[-1] == t - CUATRO_H:
                 velas[b] = (d.o.iat[-1], d.h.iat[-1], d.l.iat[-1], d.c.iat[-1])
         if self.bolsa.modo == "papel":
+            # primero lo que pasó durante la vela: stops y después el funding, con la posición que quedó (E14)
             self.bolsa.fijar_precios(precios)
-            self.funding_papel(t)
-        # 30 balas (subcuenta) con la vela de BTC
+            antes = {b: p["c"] for b, p in self.bolsa.st["pos"].items()}
+            self.bolsa.revisar_stops({k: v[:3] for k, v in velas.items()})
+            self.funding_papel(t, antes)
+        # 30 balas (subcuenta) con la vela de BTC: la vela cerrada, el capital entre campañas y la decisión
         if self.balas:
             if "BTC" in velas:
+                self.balas.vela(t, velas["BTC"], self.eventos_funding_balas(t))
                 self.capital_balas(velas["BTC"][3])
                 # al arrancar, la historia larga reconstruye sus series diarias y semanales
                 cierres = self.datos.v4("BTC", t, dias=60 if self.balas.st.get("calentado") else 420).c
-                self.balas.procesar(t, velas["BTC"], cierres, funding_8h=self.pub.funding("BTC"),
-                                    bloqueado=bool(db.get("bloqueado") or db.get("pausado")))
+                self.balas.decidir(t, cierres, px=precios.get("BTC"), bloqueado=bool(
+                    db.get("bloqueado") or db.get("pausado") or db.get("balas_bloqueo_transferencia")))
             else:
                 db.incidencia("alta", "velas_btc", f"Falta la vela de BTC de {t - CUATRO_H}: 30 balas no decidió este ciclo")
-        self.motor.ciclo(t, precios=precios, velas_cerradas={k: v[:3] for k, v in velas.items()})
+        self.motor.ciclo(t, precios=precios, velas_cerradas={})
         if db.get("liquidando"):
             self.liquidar_todo(t, "corte", precios.get("BTC"))
         self.previsiones(precios)
@@ -194,11 +198,23 @@ class Sistema:
 
     def reequilibrar_subcuenta(self, px_btc, w):
         """Real: transfiere entre la principal y la subcuenta la diferencia con peso × patrimonio total, y deja el
-        capital del modelo de 30 balas igual a lo que de verdad hay en la subcuenta."""
+        capital del modelo de 30 balas igual a lo que de verdad hay en la subcuenta. Si una transferencia anterior quedó
+        incierta, primero se resuelve con los saldos; mientras no se resuelva no se transfiere y 30 balas no abre
+        campaña (`balas_bloqueo_transferencia`)."""
         db, s = self.db, self.balas.st
         if db.get("liquidando"):
             return
         try:
+            pendientes = self.transferidor.resolver()
+            if pendientes:
+                db.set("balas_bloqueo_transferencia", True)
+                msg = ("Transferencia de 30 balas sin resolver (" + ", ".join(f"{p['accion']} {p['monto']:.2f} USDT: "
+                       f"{p['estado']}" for p in pendientes) + "). No se transfiere ni se abre campaña: revisar saldos")
+                if db.incidencia("critica", "transferencia_incierta", msg[:300], 24):
+                    self.avisar("critica", msg[:400])
+                return
+            db.set("balas_bloqueo_transferencia", False)
+            db.resolver("transferencia_incierta")
             usdt, btc_usd = self.transferidor.saldo_sub(px_btc)
             E_main = self.bolsa.patrimonio()
             plan = planificar(E_main, self.bolsa.usdt_libre(), usdt, btc_usd, w)
@@ -222,30 +238,56 @@ class Sistema:
             s["W"] = s["eq"] = usdt + btc_usd          # la próxima campaña arranca con lo que de verdad hay
             db.set(self.balas.clave, s)
             db.resolver("transferencia_balas")
+        except TransferenciaIncierta as e:
+            db.set("balas_bloqueo_transferencia", True)
+            log.exception("transferencia incierta")
+            db.incidencia("critica", "transferencia_incierta", f"Transferencia de 30 balas incierta: {e}"[:300])
+            self.avisar("critica", f"Transferencia de 30 balas sin confirmar: {e}. Bloqueo 30 balas hasta resolverla."[:400])
         except Exception as e:
             log.exception("reequilibrar subcuenta")
             if db.incidencia("alta", "transferencia_balas", f"No pude igualar el capital de 30 balas: {e}"[:300]):
                 self.avisar("alta", f"No pude igualar el capital de 30 balas con la subcuenta: {e}"[:400])
 
-    def funding_papel(self, t):
-        """Cobra o paga en papel el funding liquidado de cada posición desde el ciclo anterior (cada 8 h en KuCoin)."""
-        desde = self.db.get("funding_papel_ms")
+    def funding_papel(self, t, antes=None):
+        """Cobra o paga en papel el funding liquidado de cada posición (cada 8 h en KuCoin, o lo que diga el contrato),
+        evento por evento con la posición de ese momento: los stops de la vela ya se procesaron y `antes` es la posición
+        al empezar la vela. Marca por símbolo: el último evento visto (un evento publicado con demora no se pierde)."""
+        marcas = self.db.get("funding_papel_marcas") or {}
         hasta = int(pd.Timestamp(t).value // 10**6)
-        if desde is None:
-            self.db.set("funding_papel_ms", hasta)
-            return
+        antes = antes or {}
+        en_juego = set(antes) | set(self.bolsa.st["pos"])
+        marcas = {b: v for b, v in marcas.items() if b in en_juego}       # sin posición se olvida la marca
         pagado = 0.0
-        for b, p in list(self.bolsa.st["pos"].items()):
+        for b in sorted(en_juego):
+            desde = marcas.get(b, hasta - 4 * 3600_000)
             tasas = self.pub.funding_liquidado(b, desde)
             if tasas is None:
-                self.db.incidencia("media", "funding_papel", f"No pude leer el funding de {b}: el papel no lo aplicó")
+                self.db.incidencia("media", "funding_papel", f"No pude leer el funding de {b}: el papel lo aplica en el próximo ciclo")
+                marcas[b] = desde
                 continue
-            px = self.bolsa.st["ultimo"].get(b, p["px"])
-            for ts, tasa in tasas:
-                if ts <= hasta:
-                    pagado += self.bolsa.aplicar_funding(b, tasa, px)
-        self.db.set("funding_papel_ms", hasta)
+            ev = [(pd.to_datetime(ts, unit="ms"), r) for ts, r in tasas if ts <= hasta]
+            pagado += sum(self.bolsa.funding_vela(t, {b: ev}, antes, {b: self.bolsa.st["ultimo"].get(b)}).values())
+            marcas[b] = max([desde] + [ts for ts, r in tasas if ts <= hasta])
+        self.db.set("funding_papel_marcas", marcas)
         self.db.set("funding_papel_total", (self.db.get("funding_papel_total") or 0.0) + pagado)
+
+    def eventos_funding_balas(self, t):
+        """Papel: funding de XBTUSDM (el contrato inverso que opera 30 balas, no el perpetuo USDT) liquidado desde el
+        último evento visto. En real lo cobra el exchange y el estado se lee de la subcuenta."""
+        if not self.balas or self.balas.real:
+            return ()
+        hasta = int(pd.Timestamp(t).value // 10**6)
+        desde = self.db.get("funding_balas_ms") or hasta - 4 * 3600_000
+        ev = self.pub.funding_liquidado("BTC", desde, simbolo=INVERSO)
+        if ev is None:
+            self.db.incidencia("media", "funding_balas", "No pude leer el funding de XBTUSDM: 30 balas lo aplica en el próximo ciclo")
+            return ()
+        ev = [(ts, r) for ts, r in ev if ts <= hasta]
+        if ev:
+            self.db.set("funding_balas_ms", max(ts for ts, _ in ev))
+        elif self.db.get("funding_balas_ms") is None:
+            self.db.set("funding_balas_ms", desde)
+        return [(pd.to_datetime(ts, unit="ms"), r) for ts, r in ev]
 
     def liquidar_todo(self, t, motivo, px_btc=None):
         """Cierra la cuenta principal y 30 balas. Mientras algo quede abierto el estado sigue en «liquidando» y se
@@ -284,6 +326,8 @@ class Sistema:
         if self.bolsa.modo == "papel":
             self.bolsa.fijar_precios(precios)
         E_main = self.bolsa.patrimonio()
+        if self.balas and self.balas.real and precios.get("BTC"):
+            self.balas.sincronizar(precios["BTC"])          # en real, el patrimonio de balas es el de la subcuenta
         E_bal = self.balas.patrimonio(precios.get("BTC")) if self.balas else 0.0
         t = _ahora().floor("min")
         er = riesgo.actualizar_patrimonio(db, t, E_main + E_bal, E_main, E_bal, lib, precios, cfg)

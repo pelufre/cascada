@@ -38,6 +38,10 @@ class SpotPrincipal:
         self.hechas.append((tipo, desde, hacia, monto))
         return {"id": "x"}
 
+    def fetch_balance(self, p):
+        u = self.libro.s[("m", p["type"])]
+        return {"total": {"USDT": u}, "free": {"USDT": u}}
+
 
 class SpotSub:
     def __init__(self, libro):

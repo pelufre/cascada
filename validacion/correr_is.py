@@ -16,20 +16,26 @@ SALIDA = Path(__file__).resolve().parent / "resultados"
 
 
 def funding_xbt(ruta_xbt, paquete, hasta):
-    """Funding de XBTUSDM (KuCoin) y, antes de que exista, el del perpetuo BTCUSDT del paquete."""
-    partes = []
+    """Eventos de funding de XBTUSDM (KuCoin), el contrato que opera 30 balas: (fecha de liquidación → tasa). Donde el
+    archivo no llega (antes de 2019-08 y después de su último evento) se usan los eventos del perpetuo BTCUSDT del
+    paquete. Cada evento se cobra una vez, con la posición de ese momento (E14)."""
     F = paquete.funding(hasta)
-    if F is not None and "BTC" in F:
-        partes.append(F["BTC"].dropna())
+    btc = F["BTC"].dropna() if F is not None and "BTC" in F else None
+    partes = []
     if ruta_xbt:
         x = pd.read_csv(ruta_xbt)
         x.index = pd.to_datetime(x["fecha_utc"], utc=True).dt.tz_localize(None)
         x = x["funding_rate"].astype(float)
-        partes = [p[p.index < x.index[0]] for p in partes] + [x]
+        partes.append(x)
+        if btc is not None:
+            partes += [btc[btc.index < x.index[0]], btc[btc.index > x.index[-1]]]
+    elif btc is not None:
+        partes.append(btc)
     if not partes:
         return None
     s = pd.concat(partes).sort_index()
-    return s[s.index < pd.Timestamp(hasta)]
+    s = s[~s.index.duplicated()]
+    return s[s.index <= pd.Timestamp(hasta)]
 
 
 def uno(args):

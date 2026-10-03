@@ -16,17 +16,11 @@ from . import pesos as P
 from .correr_is import funding_xbt
 from .datos import CONGELADO, CORTE_IS, FIN_OOS, Paquete, limite
 from .cartera_lotes import cargar
-from .motor_bt import Corrida, metricas
+from .motor_bt import Corrida, metricas, por_año
 from .verificar_motor import p95_motor
 
 RAIZ = Path(__file__).resolve().parent
 RES = RAIZ / "resultados"
-
-
-def por_año(serie):
-    e = serie.E.resample("YE").last()
-    e0 = pd.concat([pd.Series([serie.E.iat[0]], [serie.index[0]]), e]).values
-    return {str(i.year): float(v / v0 - 1) for i, v, v0 in zip(e.index, e.values, e0[:-1])}
 
 
 def _caso(args):

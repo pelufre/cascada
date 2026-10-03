@@ -1,8 +1,12 @@
-"""Base SQLite: velas, estado, libro de lotes por estrategia, operaciones, patrimonio e incidencias."""
+"""Base SQLite: velas, estado, libro de lotes por estrategia, operaciones, patrimonio e incidencias.
+
+`transaccion()` agrupa varias escrituras: quedan todas o ninguna (lo usa el motor para aplicar una orden al libro, de
+modo que una caída del proceso a mitad de camino no deja una parte de la asignación escrita)."""
 import json
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import pandas as pd
@@ -31,6 +35,10 @@ CREATE TABLE IF NOT EXISTS ordenes (client_oid TEXT PRIMARY KEY, ts INTEGER, sim
     aplicado INTEGER DEFAULT 0, intentos INTEGER DEFAULT 0, error TEXT);
 CREATE INDEX IF NOT EXISTS ix_ops_ts ON operaciones(ts);
 CREATE INDEX IF NOT EXISTS ix_lotes_est ON lotes(estrategia, cerrado_ts);
+CREATE TABLE IF NOT EXISTS transferencias (id TEXT PRIMARY KEY, ts INTEGER, accion TEXT, monto REAL, estado TEXT,
+    ruta TEXT, sub_antes REAL, sub_despues REAL, pasos TEXT, error TEXT);
+CREATE TABLE IF NOT EXISTS balas_acciones (id TEXT PRIMARY KEY, ts INTEGER, vela TEXT, tipo TEXT, estado TEXT,
+    pedido TEXT, resultado TEXT, error TEXT);
 """
 
 
@@ -52,17 +60,40 @@ class Base:
         self.cx.row_factory = sqlite3.Row
         self.cx.execute("PRAGMA journal_mode=WAL")
         self.cx.executescript(ESQUEMA)
-        cols = {r[1] for r in self.cx.execute("PRAGMA table_info(lotes)")}
-        for col, tipo in (("comision", "REAL"), ("stop_contratos", "REAL")):
-            if col not in cols:
-                self.cx.execute(f"ALTER TABLE lotes ADD COLUMN {col} {tipo}")
+        for tabla, nuevas in (("lotes", (("comision", "REAL"), ("stop_contratos", "REAL"))),
+                              # lo ya aplicado al libro de una orden que llenó en partes (NULL = nada aplicado todavía)
+                              ("ordenes", (("llenado_aplicado", "REAL"), ("precio_aplicado", "REAL"),
+                                           ("comision_aplicada", "REAL")))):
+            cols = {r[1] for r in self.cx.execute(f"PRAGMA table_info({tabla})")}
+            for col, tipo in nuevas:
+                if col not in cols:
+                    self.cx.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {tipo}")
         self.cx.commit()
+        self._tx = 0          # profundidad de la transacción abierta (la tiene el hilo que tiene el cerrojo)
 
     def ejec(self, sql, args=()):
         with self._lock:
             cur = self.cx.execute(sql, args)
-            self.cx.commit()
+            if not self._tx:
+                self.cx.commit()
             return cur
+
+    @contextmanager
+    def transaccion(self):
+        """Todo lo que se escribe adentro queda junto (commit al salir) o no queda (rollback ante cualquier excepción,
+        incluida la interrupción del proceso). Se puede anidar: manda la más externa."""
+        with self._lock:
+            self._tx += 1
+            try:
+                yield self
+            except BaseException:
+                self._tx -= 1
+                if not self._tx:
+                    self.cx.rollback()
+                raise
+            self._tx -= 1
+            if not self._tx:
+                self.cx.commit()
 
     def filas(self, sql, args=()):
         with self._lock:
@@ -84,7 +115,8 @@ class Base:
                  for ts, r in zip(pd.DatetimeIndex(df.index).values.astype("datetime64[ms]").astype("int64"), df.itertuples())]
         with self._lock:
             self.cx.executemany("INSERT OR REPLACE INTO velas VALUES (?,?,?,?,?,?,?,?)", filas)
-            self.cx.commit()
+            if not self._tx:
+                self.cx.commit()
 
     def velas(self, simbolo, tf, desde_ms=0):
         with self._lock:

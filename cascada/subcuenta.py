@@ -6,10 +6,15 @@ peso × patrimonio total (principal + subcuenta). Durante una campaña no se toc
   subcuenta → principal: «trade» → «main» de la subcuenta → futuros de la principal
 
 La transferencia entre cuentas la hace la clave de la cuenta PRINCIPAL con el permiso «FlexTransfers» de KuCoin (mueve
-fondos sólo entre tus cuentas; no es permiso de retiro; KuCoin exige que la clave esté restringida por IP). Siempre se
-transfiere la diferencia entre el objetivo y los saldos leídos en ese momento, así que repetir no duplica.
-Probar primero con `cli transferencia-prueba`.
+fondos sólo entre tus cuentas; no es permiso de retiro; KuCoin exige que la clave esté restringida por IP).
+
+Cada transferencia lógica queda registrada (tabla `transferencias`) con un id durable, sus pasos y el saldo antes de
+cada paso. Ante un error de red o una respuesta perdida, el paso NO se da por fallido: se mira el saldo hasta confirmar
+que se hizo; si no se puede confirmar, la transferencia queda «incierta», no se prueba otra ruta ni se deshace nada, y
+30 balas queda bloqueada hasta resolverla con los saldos en un ciclo siguiente. Sólo un rechazo explícito del exchange
+hace probar la otra ruta. Probar primero con `cli transferencia-prueba`.
 """
+import json
 import logging
 import time
 import uuid
@@ -18,6 +23,28 @@ log = logging.getLogger("cascada.subcuenta")
 MINIMO_USDT = 10.0          # diferencias menores no se transfieren
 MINIMO_REL = 0.01           # ni las menores al 1 % del objetivo
 COLCHON_PRINCIPAL = 0.10    # la principal conserva al menos 10 % de su patrimonio libre como margen
+TOL_USDT = 0.011            # tolerancia al comparar saldos para confirmar un paso
+
+
+class TransferenciaIncierta(RuntimeError):
+    """Un paso pudo haberse hecho (sin respuesta) y el saldo no lo confirma: no se reintenta ni se prueba otra ruta."""
+
+
+class _Rechazada(RuntimeError):
+    """El exchange rechazó el paso de forma explícita: no se movió nada."""
+
+
+def es_error_de_red(e):
+    """Sin respuesta o error de conexión: la operación pudo haberse hecho del lado del exchange."""
+    try:
+        import ccxt
+        if isinstance(e, ccxt.NetworkError):
+            return True
+        if isinstance(e, ccxt.BaseError):
+            return False
+    except ImportError:
+        pass
+    return isinstance(e, (TimeoutError, ConnectionError, OSError))
 
 
 def planificar(E_main, libre_main, sub_usdt, sub_btc_usd, peso):
@@ -48,9 +75,11 @@ def planificar(E_main, libre_main, sub_usdt, sub_btc_usd, peso):
 
 class TransferidorSubcuenta:
     """Transferencias de USDT entre la principal y la subcuenta de 30 balas.
-    spot_principal: ccxt.kucoin con la clave de la principal (permiso FlexTransfers); ejecutor_sub: EjecutorRealBalas."""
+    spot_principal: ccxt.kucoin con la clave de la principal (permiso FlexTransfers); ejecutor_sub: EjecutorRealBalas;
+    db: base del servicio (registro durable de cada transferencia)."""
+    ESPERAS = (1, 2, 4, 8)          # segundos entre lecturas de saldo para confirmar un paso dudoso
 
-    def __init__(self, sub_uid, ejecutor_sub, cred_principal=None, spot_principal=None):
+    def __init__(self, sub_uid, ejecutor_sub, cred_principal=None, spot_principal=None, db=None):
         if not sub_uid:
             raise ValueError("Falta KUCOIN_BALAS_UID (UID de la subcuenta de 30 balas) en .env")
         if spot_principal is None:
@@ -59,6 +88,8 @@ class TransferidorSubcuenta:
         self.m = spot_principal
         self.sub = ejecutor_sub
         self.uid = str(sub_uid)
+        self.db = db
+        self._mem = {}                  # registro en memoria si no hay base (pruebas)
         self.ruta_ida = None
         self.ruta_vuelta = None
 
@@ -79,35 +110,106 @@ class TransferidorSubcuenta:
             raise RuntimeError(f"No pude leer el saldo de futuros de la subcuenta: {f}")
         return usdt, btc * px_btc
 
-    # ------------------------------------------------------------ transferencias
-    def _probar(self, rutas, nombre):
-        errores = []
-        for ruta in rutas:
+    def _saldo(self, cuenta):
+        """USDT de la subcuenta (main + trade) o de la cuenta «main» de la principal."""
+        if cuenta == "sub":
+            return self.saldo_sub(0.0)[0]
+        b = self.m.fetch_balance({"type": "main"})
+        return float((b.get("total") or b.get("free") or {}).get("USDT") or 0.0)
+
+    # ------------------------------------------------------------ registro durable
+    def _guardar(self, tid, **campos):
+        if self.db is None:
+            self._mem.setdefault(tid, dict(id=tid)).update(campos)
+            return
+        if not self.db.filas("SELECT 1 FROM transferencias WHERE id=?", (tid,)):
+            self.db.ejec("INSERT INTO transferencias (id, ts) VALUES (?, ?)", (tid, int(time.time() * 1000)))
+        for k, v in campos.items():
+            self.db.ejec(f"UPDATE transferencias SET {k}=? WHERE id=?", (json.dumps(v) if k == "pasos" else v, tid))
+
+    def registro(self):
+        if self.db is None:
+            return [dict(r, pasos=json.dumps(r.get("pasos", []))) for r in self._mem.values()]
+        return self.db.filas("SELECT * FROM transferencias ORDER BY ts")
+
+    def pendientes(self):
+        return [r for r in self.registro() if r.get("estado") in ("enviando", "incierta", "revisar")]
+
+    # ------------------------------------------------------------ pasos
+    def _confirmar(self, cuenta, antes, delta):
+        """Después de un error dudoso: True si el saldo de `cuenta` cambió `delta` desde `antes`; False si no cambió;
+        None si cambió otra cosa o no se pudo leer."""
+        ahora = None
+        for s in self.ESPERAS:
+            time.sleep(s)
             try:
-                ruta[1]()
-                log.info("transferencia %s por %s", nombre, ruta[0])
-                return ruta
-            except Exception as e:
-                errores.append(f"{ruta[0]}: {str(e)[:160]}")
-        raise RuntimeError(f"No pude transferir ({nombre}). Intentos:\n  " + "\n  ".join(errores))
+                ahora = self._saldo(cuenta)
+            except Exception:
+                continue
+            if abs(ahora - antes - delta) <= TOL_USDT:
+                return True
+        if ahora is None:
+            return None
+        return False if abs(ahora - antes) <= TOL_USDT else None
 
-    @staticmethod
-    def _dos_pasos(paso1, paso2, deshacer):
-        """Si el segundo paso falla, deshace el primero (no deja USDT varado en una cuenta intermedia)."""
-        paso1()
+    def _paso(self, tid, pasos, desc, fn, cuenta, delta, coid, k=0, de=1, deshace=False):
+        """Un paso de una ruta (k de `de`). Se anota antes de mandarlo, con el saldo que se va a mirar."""
+        antes = self._saldo(cuenta)
+        reg = dict(paso=desc, cuenta=cuenta, antes=antes, delta=delta, clientOid=coid, k=k, de=de, deshace=deshace,
+                   estado="enviando")
+        pasos.append(reg); self._guardar(tid, pasos=pasos)
         try:
-            paso2()
+            fn(coid)
         except Exception as e:
-            if deshacer:
-                try:
-                    deshacer()
-                except Exception as e2:
-                    raise RuntimeError(f"segundo paso falló ({e}) y no pude deshacer el primero ({e2}): revisar a mano")
-                raise RuntimeError(f"segundo paso falló, primero deshecho: {e}")
-            raise RuntimeError(f"segundo paso falló; el USDT quedó en la cuenta «main» de la principal: {e}")
+            reg["error"] = str(e)[:200]
+            if not es_error_de_red(e):
+                reg["estado"] = "rechazada"; self._guardar(tid, pasos=pasos)
+                raise _Rechazada(f"{desc}: {str(e)[:160]}")
+            if self._confirmar(cuenta, antes, delta):
+                reg["estado"] = "hecha (confirmada por saldo)"; self._guardar(tid, pasos=pasos)
+                log.warning("transferencia %s: %s sin respuesta pero confirmada por saldo", tid[:8], desc)
+                return
+            reg["estado"] = "incierta"; self._guardar(tid, estado="incierta", pasos=pasos, error=str(e)[:300])
+            raise TransferenciaIncierta(f"{desc}: sin respuesta ({str(e)[:120]}) y el saldo no lo confirma; "
+                                        "no se reintenta ni se prueba otra ruta hasta resolverla con los saldos")
+        reg["estado"] = "hecha"; self._guardar(tid, pasos=pasos)
 
-    def _flex(self, monto, desde, hacia, tipo):
-        p = {"transferType": tipo, "clientOid": uuid.uuid4().hex}
+    def _transferir(self, accion, monto, rutas, preferida):
+        """rutas: [(nombre, [(desc, fn(clientOid), cuenta a mirar, delta esperado)], deshacer | None)]."""
+        tid = uuid.uuid4().hex
+        self._guardar(tid, accion=accion, monto=monto, estado="enviando", sub_antes=self._saldo("sub"), pasos=[])
+        if preferida:
+            rutas = [x for x in rutas if x[0] == preferida] + [x for x in rutas if x[0] != preferida]
+        errores, reg = [], []
+        for i, (nombre, pasos, deshacer) in enumerate(rutas):
+            self._guardar(tid, ruta=nombre)
+            n0 = len(reg)
+            try:
+                for k, (desc, fn, cuenta, delta) in enumerate(pasos):
+                    self._paso(tid, reg, desc, fn, cuenta, delta, f"{tid[:26]}r{i}p{k}", k, len(pasos))
+            except _Rechazada as e:
+                hechos = [r for r in reg[n0:] if r["estado"].startswith("hecha")]
+                if hechos and deshacer:          # el segundo paso se rechazó: se deshace el primero (también verificado)
+                    try:
+                        self._paso(tid, reg, *deshacer, f"{tid[:26]}r{i}u", 0, 1, True)
+                    except _Rechazada as e2:
+                        self._guardar(tid, estado="revisar", pasos=reg, error=f"{e}; no pude deshacer: {e2}"[:300])
+                        raise RuntimeError(f"segundo paso rechazado ({e}) y no pude deshacer el primero ({e2}): revisar a mano")
+                    errores.append(f"{nombre}: {e} (primer paso deshecho)")
+                    continue
+                if hechos:
+                    self._guardar(tid, estado="revisar", pasos=reg, error=str(e)[:300])
+                    raise RuntimeError(f"segundo paso rechazado ({e}); el USDT quedó en la cuenta «main» de la principal: revisar")
+                errores.append(str(e))
+                continue
+            self._guardar(tid, estado="hecha", ruta=nombre, pasos=reg, sub_despues=self._saldo("sub"))
+            log.info("transferencia %s %s %.2f USDT por %s", tid[:8], accion, monto, nombre)
+            return nombre
+        self._guardar(tid, estado="fallida", error="; ".join(errores)[:300])
+        raise RuntimeError(f"No pude transferir ({accion} {monto:.2f} USDT). Intentos:\n  " + "\n  ".join(errores))
+
+    def _flex(self, monto, desde, hacia, tipo, coid):
+        p = {"transferType": tipo, "clientOid": coid}
         if tipo == "PARENT_TO_SUB":
             p["toUserId"] = self.uid
         elif tipo == "SUB_TO_PARENT":
@@ -116,36 +218,79 @@ class TransferidorSubcuenta:
 
     def enviar(self, monto):
         """Principal (futuros) → subcuenta (main) y, dentro de la subcuenta, main → trade."""
+        f = self._flex
         rutas = [
             ("futuros principal → main subcuenta",
-             lambda: self._flex(monto, "contract", "main", "PARENT_TO_SUB")),
+             [("futuros principal → main subcuenta", lambda c: f(monto, "contract", "main", "PARENT_TO_SUB", c), "sub", monto)], None),
             ("futuros → main principal, luego main → main subcuenta",
-             lambda: self._dos_pasos(lambda: self._flex(monto, "contract", "main", "INTERNAL"),
-                                     lambda: self._flex(monto, "main", "main", "PARENT_TO_SUB"),
-                                     lambda: self._flex(monto, "main", "contract", "INTERNAL"))),
+             [("futuros → main principal", lambda c: f(monto, "contract", "main", "INTERNAL", c), "principal", monto),
+              ("main principal → main subcuenta", lambda c: f(monto, "main", "main", "PARENT_TO_SUB", c), "sub", monto)],
+             ("deshacer: main → futuros principal", lambda c: f(monto, "main", "contract", "INTERNAL", c), "principal", -monto)),
         ]
-        if self.ruta_ida:
-            rutas = [x for x in rutas if x[0] == self.ruta_ida] + [x for x in rutas if x[0] != self.ruta_ida]
-        r = self._probar(rutas, f"principal → subcuenta {monto:.2f} USDT")
-        self.ruta_ida = r[0]
+        self.ruta_ida = self._transferir("enviar", monto, rutas, self.ruta_ida)
         time.sleep(1)
         self.sub.usdt_a_trading()
+        return self.ruta_ida
 
     def traer(self, monto):
         """Subcuenta (trade → main) → principal (futuros)."""
         b = self.sub.spot.fetch_balance({"type": "trade"})
         en_trade = float(b["free"].get("USDT") or 0)
         if en_trade > 0.01:
-            self.sub.spot.transfer("USDT", min(en_trade, monto), "trade", "main")
+            self.sub.spot.transfer("USDT", min(en_trade, monto), "trade", "main")      # dentro de la subcuenta
             time.sleep(1)
+        f = self._flex
         rutas = [
             ("main subcuenta → futuros principal",
-             lambda: self._flex(monto, "main", "contract", "SUB_TO_PARENT")),
+             [("main subcuenta → futuros principal", lambda c: f(monto, "main", "contract", "SUB_TO_PARENT", c), "sub", -monto)], None),
             ("main subcuenta → main principal, luego main → futuros principal",
-             lambda: self._dos_pasos(lambda: self._flex(monto, "main", "main", "SUB_TO_PARENT"),
-                                     lambda: self._flex(monto, "main", "contract", "INTERNAL"), None)),
+             [("main subcuenta → main principal", lambda c: f(monto, "main", "main", "SUB_TO_PARENT", c), "sub", -monto),
+              ("main → futuros principal", lambda c: f(monto, "main", "contract", "INTERNAL", c), "principal", -monto)], None),
         ]
-        if self.ruta_vuelta:
-            rutas = [x for x in rutas if x[0] == self.ruta_vuelta] + [x for x in rutas if x[0] != self.ruta_vuelta]
-        r = self._probar(rutas, f"subcuenta → principal {monto:.2f} USDT")
-        self.ruta_vuelta = r[0]
+        self.ruta_vuelta = self._transferir("traer", monto, rutas, self.ruta_vuelta)
+        return self.ruta_vuelta
+
+    # ------------------------------------------------------------ transferencias que quedaron inciertas
+    def resolver(self):
+        """Decide con los saldos las transferencias que quedaron inciertas (o a medias por una caída del proceso).
+        Devuelve las que siguen sin resolver: mientras haya alguna, no se transfiere y 30 balas no abre campaña.
+          · el paso dudoso se hizo: si era el último de su ruta, la transferencia está hecha; si era un paso intermedio
+            o un «deshacer», queda «revisar» (dinero en la cuenta main de la principal) salvo que el deshacer complete
+            la vuelta atrás (entonces no se movió nada: «fallida»);
+          · no se hizo: si era el primer paso, no se movió nada («fallida»); si no, «revisar»;
+          · el saldo cambió otra cosa: sigue incierta."""
+        quedan = []
+        for t in self.pendientes():
+            pasos = json.loads(t["pasos"]) if isinstance(t.get("pasos"), str) else list(t.get("pasos") or [])
+            dudosos = [x for x in pasos if x["estado"] in ("enviando", "incierta")]
+            if t["estado"] == "revisar":
+                quedan.append(t)
+                continue
+            if not dudosos:
+                if not any(x["estado"].startswith("hecha") for x in pasos):     # cayó antes de mandar nada
+                    self._guardar(t["id"], estado="fallida", error="interrumpida antes de transferir")
+                else:
+                    quedan.append(t)
+                continue
+            x = dudosos[-1]
+            try:
+                ahora = self._saldo(x["cuenta"])
+            except Exception:
+                quedan.append(t)
+                continue
+            if abs(ahora - x["antes"] - x["delta"]) <= TOL_USDT:
+                x["estado"] = "hecha (confirmada después)"
+                if x.get("deshace"):
+                    estado = "fallida"                       # se deshizo el primer paso: no se movió nada
+                else:
+                    estado = "hecha" if x["k"] == x["de"] - 1 else "revisar"
+            elif abs(ahora - x["antes"]) <= TOL_USDT:
+                x["estado"] = "no se hizo"
+                estado = "fallida" if x["k"] == 0 and not x.get("deshace") else "revisar"
+            else:
+                quedan.append(t)
+                continue
+            self._guardar(t["id"], pasos=pasos, estado=estado)
+            if estado == "revisar":
+                quedan.append(dict(t, estado="revisar"))
+        return quedan

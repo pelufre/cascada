@@ -346,7 +346,7 @@ def o10_balas_con_historia():
     bl = Balas(db, 600.0)
     s = _serie_btc()
     c = s.iat[-1]
-    bl.procesar(T0, (c, c, c, c), s, funding_8h=0.0001)
+    bl.procesar(T0, (c, c, c, c), s, eventos_funding=[(T0, 0.0001)])
     st = bl.st
     assert len(st["dC"]) >= 200, f"dC {len(st['dC'])}"
     assert len(st["emaHist"]) >= 5, f"emaHist {len(st['emaHist'])}"
@@ -442,28 +442,11 @@ def o14_lote_a_cero():
     assert not b.posiciones(), b.posiciones()
 
 
-class _RealBalas:
-    def __init__(self):
-        self.llamadas = []
-
-    def __getattr__(self, n):
-        return lambda *a, **k: self.llamadas.append((n, a))
-
-
 def o15_recarga_solo_margen():
-    """Una recarga que sólo agrega margen (sin contratos) también se ejecuta en la subcuenta real."""
-    from cascada.balas import Balas
-    db = Base(":memory:")
-    real = _RealBalas()
-    bl = Balas(db, 600.0, real=real)
-    t = pd.Timestamp("2026-01-07 00:00")      # miércoles 00:00
-    s = bl.st
-    s.update(activo=True, rec=False, resd=False, used=5, ntn=1.0, inv=0.01, mbtc=0.02, contrib=0.1, regWeekly=True,
-             dC=[60.0] * 250, emaHist=[50.0] * 6, emaW=50.0, momT=True, calentado=True, entry_t=str(t - 10 * H4))
-    cierres = pd.Series(np.linspace(70, 62, 100), index=pd.date_range(end=t - H4, periods=100, freq="4h"))
-    bl.procesar(t, (62.0, 62.0, 62.0, 62.0), cierres, funding_8h=0.0)
-    assert s["used"] > 5, "no hubo recarga en la simulación"
-    assert real.llamadas, "la subcuenta real no recibió el margen"
+    """Una recarga que sólo agrega margen (sin contratos) también se ejecuta en la subcuenta real (ver test_auditoria2:
+    en real el estado se lee de la subcuenta)."""
+    from .test_auditoria2 import o15b_recarga_solo_margen_real
+    o15b_recarga_solo_margen_real()
 
 
 PRUEBAS = [o01_llenado_parcial, o02_stop_rechazado, o03_reducciones_reduce_only, o04_pausa_no_aumenta, o05_conciliar_antes,

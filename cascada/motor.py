@@ -5,14 +5,17 @@ van del mismo lado (un lote nuevo del lado contrario se omite mientras haya otro
 la suma de los lotes, toda reducción va reduce-only y cada lote tiene su propio stop reduce-only.
 
 Orden del ciclo:
-  1. órdenes de un ciclo anterior con resultado incierto: se consultan por clientOid y se aplican
+  1. órdenes no aplicadas del todo (aplicado=0, en cualquier estado: enviando, incierta, abierta, o terminal con la
+     aplicación interrumpida): se consultan por clientOid y se aplica lo que llenó y falta en el libro
   2. stops: ejecutado → se cierra el lote al precio real; cancelado → se repone (nunca se toma un stop ausente por ejecutado)
   3. conciliación ANTES de operar; si libro y exchange no coinciden, ese ciclo sólo se reduce
   4. patrimonio, alerta y corte; el corte deja el estado «liquidando» y se reintenta hasta quedar plano
   5. estrategias → asignación en cascada → contratos objetivo → recorte por tope sobre los objetivos
-  6. en pausa, bloqueo o desconciliación: sólo reducciones
-  7. una orden neta por símbolo; el libro registra lo que llenó de verdad (parciales incluidos); lo que se compensa entre
-     lotes del mismo símbolo pasa de uno a otro al precio de mercado, sin orden
+  6. en pausa, bloqueo, desconciliación u orden pendiente en el símbolo: sólo reducciones
+  7. una orden neta por símbolo y un solo lado por símbolo (si entran pedidos de los dos lados sobre un símbolo plano,
+     entra el de mayor prioridad); el libro registra lo que llenó de verdad (parciales incluidos), en una sola
+     transacción con el estado de la orden; lo que se compensa entre lotes del mismo símbolo pasa de uno a otro al precio
+     de mercado, sin orden. Una orden que el exchange sigue mostrando abierta nunca se da por aplicada
   8. stops de cada lote; si no se puede poner, el lote se cierra
   9. conciliación final
 """
@@ -60,6 +63,10 @@ class Motor:
     def _lote(self, i):
         r = self.db.filas("SELECT * FROM lotes WHERE id=?", (i,))
         return r[0] if r else None
+
+    def _pendientes(self):
+        """Símbolos con una orden todavía no aplicada del todo: ahí sólo se reduce hasta resolverla."""
+        return {r["simbolo"] for r in self.db.filas("SELECT DISTINCT simbolo FROM ordenes WHERE aplicado=0")}
 
     def _prio(self, est):
         p = self.cfg.prioridad
@@ -121,6 +128,8 @@ class Motor:
         if not reducir and not aumentar:
             return None
         lado_pos = reducir[0][0]["lado"] if reducir else aumentar[0][2]["lado"]
+        if any(L["lado"] != lado_pos for L, _, _ in reducir) or any(x[2]["lado"] != lado_pos for x in aumentar):
+            raise ValueError(f"{sim}: una orden no puede mezclar lados (los separa _operar)")
         px = self.precios.get(sim) or (reducir[0][0]["precio_entrada"] if reducir else None)
         plan = dict(t=str(t), sim=sim, px=px,
                     reducir=[dict(id=L["id"], q=q, motivo=m) for L, q, m in reducir],
@@ -152,46 +161,79 @@ class Motor:
         return r
 
     def _cerrar_orden(self, oid, plan, r):
-        self.db.ejec("UPDATE ordenes SET estado=?, orden_id=?, llenado=?, precio=?, comision=? WHERE client_oid=?",
-                     (r["estado"], r.get("orden_id"), r["llenado"], r.get("precio"), r.get("comision", 0), oid))
-        self._aplicar(plan, r["llenado"], r.get("precio"), r.get("comision", 0.0), oid)
-        self.db.ejec("UPDATE ordenes SET aplicado=1 WHERE client_oid=?", (oid,))
+        """Aplica al libro lo que llenó la orden y anota su estado, todo en UNA transacción (si el proceso muere a mitad
+        de camino no queda nada escrito y `_recuperar` la vuelve a encontrar con aplicado=0). Si el exchange la sigue
+        mostrando abierta, se aplica lo llenado hasta ahora y queda pendiente: lo que llene después se suma en
+        `_recuperar`. Nunca se marca aplicada una orden abierta."""
+        o = self.db.filas("SELECT llenado_aplicado, precio_aplicado, comision_aplicada FROM ordenes WHERE client_oid=?", (oid,))
+        ya = o[0]["llenado_aplicado"] if o else None
+        terminal = r["estado"] != "abierta"
+        llen = float(r.get("llenado") or 0.0); com = float(r.get("comision") or 0.0); px = r.get("precio")
+        with self.db.transaccion():
+            if ya is None:                          # primera vez: lo compensado entre lotes + lo llenado
+                self._aplicar(plan, llen, px, com, oid, desde=None, final=terminal)
+            elif llen > ya + EPS:                   # llenó más desde la última vez: sólo la diferencia
+                px0 = o[0]["precio_aplicado"] or px or 0.0
+                px_inc = (px * llen - px0 * ya) / (llen - ya) if px else px0
+                self._aplicar(plan, llen, px_inc, com - (o[0]["comision_aplicada"] or 0.0), oid, desde=ya, final=terminal)
+            elif terminal:                          # nada nuevo: sólo las incidencias de entradas que no llenaron
+                self._aplicar(plan, llen, px, 0.0, oid, desde=llen, final=True)
+            self.db.ejec("UPDATE ordenes SET estado=?, orden_id=?, llenado=?, precio=?, comision=?, llenado_aplicado=?,"
+                         " precio_aplicado=?, comision_aplicada=?, aplicado=? WHERE client_oid=?",
+                         (r["estado"], r.get("orden_id"), llen, px, com, llen, px, com, int(terminal), oid))
+        if not terminal:
+            self.db.incidencia("alta", "orden_abierta", f"Orden {plan['sim']} {oid[:8]} sigue abierta en el exchange "
+                               f"(llenó {llen:g}): se sigue en el próximo ciclo; el símbolo sólo reduce")
 
-    def _aplicar(self, plan, llenado, precio, comision, oid):
-        """Reparte lo compensado (al precio de mercado) y lo llenado por la orden (a su precio) entre los lotes."""
+    def _aplicar(self, plan, llenado, precio, comision, oid, desde=None, final=True):
+        """Reparte entre los lotes lo compensado (al precio de mercado) y lo llenado por la orden (a su precio).
+        desde=None: primera aplicación (lo compensado + el llenado [0, llenado)). desde=x: sólo el tramo [x, llenado) que
+        la orden llenó después, con `precio` y `comision` de ese tramo. final=False: la orden sigue abierta (todavía no
+        se avisa de las entradas sin llenar)."""
         t = pd.Timestamp(plan["t"]); px = plan["px"]
         R = sum(x["q"] for x in plan["reducir"]); I = sum(x["q"] for x in plan["aumentar"])
         interno = min(R, I)
+        primera = desde is None
+        a, b = (0.0 if primera else desde), llenado
+        tramo = max(b - a, 0.0)
 
-        def partes(lista, disp_int, disp_ord):
+        def partes(lista):
+            disp_int, cur = interno, 0.0
             for x in lista:
                 de_int = min(x["q"], disp_int); disp_int -= de_int
-                de_ord = min(x["q"] - de_int, disp_ord); disp_ord -= de_ord
+                lo = cur; cur += x["q"] - de_int                  # su parte del llenado de la orden: [lo, cur)
+                de_ord = max(0.0, min(cur, b) - max(lo, a))
+                if not primera:
+                    de_int = 0.0                                   # lo compensado ya se aplicó la primera vez
                 tot = de_int + de_ord
                 if tot <= EPS:
                     yield x, 0.0, None, 0.0
                     continue
                 p = (de_int * px + de_ord * (precio or px)) / tot
-                yield x, tot, p, (comision * de_ord / llenado) if llenado else 0.0
+                yield x, tot, p, (comision * de_ord / tramo) if tramo > EPS else 0.0
 
         if I >= R:      # orden de apertura (o nada): los que reducen salen completos contra los que aumentan
-            red = [(x, x["q"], px, 0.0) for x in plan["reducir"]]
-            aum = list(partes(plan["aumentar"], interno, llenado))
+            red = [(x, x["q"], px, 0.0) for x in plan["reducir"]] if primera else []
+            aum = list(partes(plan["aumentar"]))
         else:           # orden reduce-only: los que aumentan entran completos contra los que reducen
-            aum = [(x, x["q"], px, 0.0) for x in plan["aumentar"]]
-            red = list(partes(plan["reducir"], interno, llenado))
+            aum = [(x, x["q"], px, 0.0) for x in plan["aumentar"]] if primera else []
+            red = list(partes(plan["reducir"]))
         for x, q, p, com in red:
             if q > EPS:
                 self._reducir(t, dict(id=x["id"]), q, p, com, x["motivo"], oid)
         for x, q, p, com in aum:
+            L = self._lote(x["id"] or x["D"]["id"])
             if q <= EPS:
-                if x["id"] is None:
+                if x["id"] is None and final and (L is None or L["cerrado_ts"] is not None):
                     self.db.incidencia("media", "entrada_sin_llenar", f"{x['est']} {plan['sim']}: la orden no llenó, el lote no se abrió")
                 continue
-            if x["id"] is None:
+            if L is None:
                 self._crear(t, x["est"], x["D"], q, p, com, x["motivo"], oid)
+            elif L["cerrado_ts"] is None:
+                self._aumentar(t, L, q, p, com, x["motivo"], oid)
             else:
-                self._aumentar(t, dict(id=x["id"]), q, p, com, x["motivo"], oid)
+                self.db.incidencia("alta", "llenado_tardio", f"{plan['sim']}: la orden {oid[:8]} llenó {q:g} contratos después "
+                                   f"de cerrado el lote {L['id']}: la conciliación lo marca; revisar")
 
     def _consultar(self, sim, oid):
         try:
@@ -200,22 +242,43 @@ class Motor:
             return None
 
     def _recuperar(self):
-        """Órdenes de ciclos anteriores sin confirmar: se buscan por clientOid y, si se ejecutaron, se aplican."""
-        for o in self.db.filas("SELECT * FROM ordenes WHERE aplicado=0 AND estado IN ('enviando','incierta')"):
-            r = self._consultar(o["simbolo"], o["client_oid"])
-            if r and r["estado"] != "abierta":
-                self._cerrar_orden(o["client_oid"], json.loads(o["plan"]), r)
-                self.db.resolver("orden_incierta")
+        """Órdenes no aplicadas del todo (aplicado=0, en cualquier estado): se buscan por clientOid y se aplica lo que
+        llenó y no está en el libro. Una orden que sigue abierta se intenta cancelar; mientras no se resuelva, el símbolo
+        sólo reduce."""
+        for o in self.db.filas("SELECT * FROM ordenes WHERE aplicado=0 ORDER BY ts"):
+            oid, plan = o["client_oid"], json.loads(o["plan"])
+            r = self._consultar(o["simbolo"], oid)
+            if r is not None and r["estado"] == "abierta":
+                self._cerrar_orden(oid, plan, r)                  # lo llenado hasta ahora (sigue pendiente)
+                try:
+                    self.bolsa.cancelar_orden(o["simbolo"], oid)
+                except Exception:
+                    pass
+                r2 = self._consultar(o["simbolo"], oid)
+                if r2 is None or r2["estado"] == "abierta":
+                    n = o["intentos"] + 1
+                    self.db.ejec("UPDATE ordenes SET intentos=? WHERE client_oid=?", (n, oid))
+                    if n >= 3 and self.db.incidencia("critica", "orden_abierta_trabada",
+                                                     f"Orden {o['simbolo']} {oid[:8]} sigue abierta tras {n} intentos de cancelar: revisar a mano"):
+                        self.avisar("critica", f"Orden {o['simbolo']} sigue abierta en el exchange tras {n} intentos de cancelarla: revisar a mano")
+                    continue
+                r = r2
+            if r is not None:
+                self._cerrar_orden(oid, plan, r)
+                self.db.resolver("orden_incierta"); self.db.resolver("orden_abierta")
                 self.avisar("info", f"Orden {o['simbolo']} {o['lado']} confirmada: llenó {r['llenado']:g}")
                 continue
             n = o["intentos"] + 1
-            if n >= 3:
-                self.db.ejec("UPDATE ordenes SET estado='perdida', aplicado=1, intentos=? WHERE client_oid=?", (n, o["client_oid"]))
+            if n >= 3 and o["llenado_aplicado"] is None:
+                self.db.ejec("UPDATE ordenes SET estado='perdida', aplicado=1, intentos=? WHERE client_oid=?", (n, oid))
                 self.db.incidencia("critica", "orden_perdida",
                                    f"Orden {o['simbolo']} {o['lado']} {o['contratos']:g} sin rastro en el exchange: revisar a mano")
                 self.avisar("critica", f"Orden {o['simbolo']} {o['lado']} {o['contratos']:g} sin rastro en el exchange: revisar a mano")
             else:
-                self.db.ejec("UPDATE ordenes SET intentos=? WHERE client_oid=?", (n, o["client_oid"]))
+                self.db.ejec("UPDATE ordenes SET intentos=? WHERE client_oid=?", (n, oid))
+                if n >= 3:
+                    self.db.incidencia("critica", "orden_sin_respuesta", f"Orden {o['simbolo']} {oid[:8]} con llenado parcial "
+                                       "aplicado y el exchange no responde por ella: revisar a mano")
 
     # ------------------------------------------------------------ stops
     def _cancelar_stop(self, L):
@@ -482,42 +545,51 @@ class Motor:
         self.db.incidencia("media", "tope", f"Nocional {n:.0f} > límite {limite:.0f}: recorté desde la última prioridad")
 
     def _operar(self, t, obj, solo_reducir):
+        pendientes = self._pendientes()
         por_sim = {}
         for i, o in obj.items():
             por_sim.setdefault(o["sim"], []).append(o)
         planes = []
         for sim, os_ in por_sim.items():
-            abiertos = [o for o in os_ if o["L"]]
-            lado = abiertos[0]["lado"] if abiertos else None
-            red, aum, opuesto = [], [], []
+            solo_red = solo_reducir or sim in pendientes      # con una orden sin resolver en el símbolo, sólo se reduce
+            red, aum, despues, omitidos = [], [], [], []
             for o in os_:
                 if o["L"]:
                     d = o["c"] - abs(o["L"]["contratos"])
                     if d < -EPS:
                         red.append((o["L"], -d, o["motivo"] or "reajuste"))
-                    elif d > EPS and not solo_reducir:
+                    elif d > EPS and not solo_red:
                         aum.append((o["L"], o["est"], o["D"], d, "reajuste"))
-                elif not solo_reducir:
-                    (aum if lado is None or o["lado"] == lado else opuesto).append((None, o["est"], o["D"], o["c"], "entrada"))
+            nuevos = sorted([o for o in os_ if not o["L"] and o["c"] > EPS], key=lambda o: self._prio(o["est"]))
+            if nuevos and solo_red and not solo_reducir:
+                self.db.incidencia("media", "orden_pendiente", f"{sim}: hay una orden sin resolver; no se abre nada nuevo hasta resolverla")
+            if nuevos and not solo_red:
+                abiertos = [o for o in os_ if o["L"]]
+                quedan = [o for o in abiertos if o["c"] > EPS]
+                # un solo lado por símbolo: el de los lotes que siguen abiertos; si no queda ninguno (símbolo plano o que
+                # se cierra ahora), el de la entrada de mayor prioridad, aunque haya pedidos de los dos lados
+                lado = quedan[0]["L"]["lado"] if quedan else nuevos[0]["lado"]
+                lado_libro = abiertos[0]["L"]["lado"] if abiertos else lado
+                for o in nuevos:
+                    x = (None, o["est"], o["D"], o["c"], "entrada")
+                    if o["lado"] != lado:
+                        omitidos.append(o["est"])
+                    elif lado == lado_libro:
+                        aum.append(x)
+                    else:                   # del otro lado de lotes que se cierran en este ciclo: después de cerrarlos
+                        despues.append(x)
+                if omitidos:
+                    self.db.incidencia("baja", "lado_opuesto", f"{sim}: " + ", ".join(sorted(set(omitidos)))
+                                       + " quiso abrir del lado contrario; un símbolo va de un solo lado (manda la prioridad)")
             red.sort(key=lambda x: (abs(x[0]["contratos"]) - x[1] > EPS, -self._prio(x[0]["estrategia"])))
             aum.sort(key=lambda x: self._prio(x[1]))
-            if opuesto:
-                if any(o["L"] and o["c"] > EPS for o in os_):
-                    self.db.incidencia("baja", "lado_opuesto", f"{sim}: " + ", ".join(x[1] for x in opuesto)
-                                       + " quiso abrir del lado contrario a un lote abierto; se omite")
-                    opuesto = []
-                elif aum:      # nuevos de los dos lados en un símbolo plano: entra el de mayor prioridad
-                    todos = sorted(aum + opuesto, key=lambda x: self._prio(x[1]))
-                    l0 = todos[0][2]["lado"]
-                    aum = [x for x in todos if x[2]["lado"] == l0]; opuesto = []
-                    self.db.incidencia("baja", "lado_opuesto", f"{sim}: entradas de los dos lados; entra la de mayor prioridad")
             neto = sum(x[3] for x in aum) - sum(x[1] for x in red)
-            planes.append((neto > 0, sim, red, aum, opuesto))
-        for _, sim, red, aum, opuesto in sorted(planes, key=lambda p: p[0]):     # primero lo que libera margen
+            planes.append((neto > 0, sim, red, aum, despues))
+        for _, sim, red, aum, despues in sorted(planes, key=lambda p: p[0]):     # primero lo que libera margen
             try:
                 self._ejecutar(t, sim, red, aum)
-                if opuesto and not any(L["simbolo"] == sim for L in self.libro().values()):
-                    self._ejecutar(t, sim, [], sorted(opuesto, key=lambda x: self._prio(x[1])))
+                if despues and not any(L["simbolo"] == sim for L in self.libro().values()) and sim not in self._pendientes():
+                    self._ejecutar(t, sim, [], despues)
             except Exception as ex:
                 log.exception("operar %s", sim)
                 self.db.incidencia("alta", "operar", f"{sim}: {ex}"[:300])

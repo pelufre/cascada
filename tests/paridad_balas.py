@@ -21,7 +21,7 @@ def main(a):
     for i in range(len(b)):
         t = b.index[i] + pd.Timedelta(hours=4)
         m.procesar(t, (b.open.iat[i], b.high.iat[i], b.low.iat[i], b.close.iat[i]),
-                   C.iloc[max(0, i - 300):i + 1], funding_8h=fr[i] * 2)
+                   C.iloc[max(0, i - 300):i + 1], eventos_funding=[(t, fr[i])])
         vivo[i] = m.patrimonio(b.close.iat[i])
     v = pd.Series(vivo, index=b.index)
     # el backtest valoriza la barra i con lo ejecutado en su apertura; el vivo ejecuta al cierre de la anterior:

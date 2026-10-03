@@ -11,6 +11,9 @@ import pandas as pd
 TF_MS = {"4h": 4 * 3600_000, "1d": 86400_000}
 
 
+INVERSO = "BTC/USD:BTC"          # XBTUSDM, el futuro inverso de 30 balas (margen y funding en BTC)
+
+
 def ccxt_sym(base):
     return f"{base}/USDT:USDT"
 
@@ -71,16 +74,18 @@ class Publico:
         return {s.split("/")[0]: float(v.get("last") or v.get("close")) for s, v in t.items()
                 if s in quiero and (v.get("last") or v.get("close"))}
 
-    def funding(self, base):
+    def funding(self, base, simbolo=None):
+        """Tasa vigente del contrato. simbolo: el de ccxt si no es el perpetuo USDT de `base` (30 balas: INVERSO)."""
         try:
-            return float(self.ex.fetch_funding_rate(ccxt_sym(base)).get("fundingRate") or 0)
+            return float(self.ex.fetch_funding_rate(simbolo or ccxt_sym(base)).get("fundingRate") or 0)
         except Exception:
             return None
 
-    def funding_liquidado(self, base, desde_ms):
-        """Tasas de funding ya liquidadas desde desde_ms (exclusivo): lista de (ts_ms, tasa). None si no se pudo leer."""
+    def funding_liquidado(self, base, desde_ms, simbolo=None):
+        """Tasas de funding ya liquidadas desde desde_ms (exclusivo): lista de (ts_ms, tasa) del contrato (el perpetuo
+        USDT de `base`, o `simbolo` de ccxt: 30 balas usa INVERSO = XBTUSDM). None si no se pudo leer."""
         try:
-            h = self.ex.fetch_funding_rate_history(ccxt_sym(base), since=desde_ms + 1, limit=20)
+            h = self.ex.fetch_funding_rate_history(simbolo or ccxt_sym(base), since=desde_ms + 1, limit=20)
             return [(int(x["timestamp"]), float(x["fundingRate"])) for x in h
                     if x.get("timestamp") and x["timestamp"] > desde_ms and x.get("fundingRate") is not None]
         except Exception:
@@ -193,6 +198,15 @@ class KucoinReal:
             return None
         return self._resultado(f, f.get("id")) if f else None
 
+    def cancelar_orden(self, base, client_oid):
+        """Cancela lo que quede abierto de una orden (por clientOid). True si ya no está abierta."""
+        try:
+            self.ex.cancel_order(None, ccxt_sym(base), {"clientOid": client_oid})
+        except Exception:
+            pass
+        r = self.estado_orden(base, client_oid)
+        return r is not None and r["estado"] != "abierta"
+
     def enviar_stop(self, base, lado, contratos, precio, client_oid=None):
         params = {"reduceOnly": True, "triggerPrice": precio, "clientOid": client_oid or uuid.uuid4().hex,
                   "leverage": self.lev, "marginMode": "cross"}
@@ -291,7 +305,7 @@ class Papel:
     def enviar_orden(self, base, lado, contratos, reduce_only=False, client_oid=None, precio_ref=None):
         oid = client_oid or uuid.uuid4().hex
         q = self._acotar(base, lado, float(contratos), reduce_only)
-        d = self.desliz.get(base, self.desliz.get("_", 0.0)) if isinstance(self.desliz, dict) else self.desliz
+        d = self._d(base)
         px = self.st["ultimo"][base] * (1 + d if lado == "buy" else 1 - d)
         com = self._llenar(base, q if lado == "buy" else -q, px) if q > 0 else 0.0
         r = dict(estado="cerrada" if q >= contratos else "cancelada" if q > 0 else "rechazada", llenado=q,
@@ -306,15 +320,42 @@ class Papel:
     def estado_orden(self, base, client_oid):
         return self.st["ordenes"].get(client_oid)
 
-    def aplicar_funding(self, base, tasa, precio):
-        """Cobra o paga el funding de la posición abierta (el largo paga si la tasa es positiva). Devuelve lo pagado."""
-        p = self.st["pos"].get(base)
-        if not p or not tasa:
+    def cancelar_orden(self, base, client_oid):
+        return True                       # el papel llena o rechaza al instante: nunca queda nada abierto
+
+    def _d(self, base):
+        return self.desliz.get(base, self.desliz.get("_", 0.0)) if isinstance(self.desliz, dict) else self.desliz
+
+    def aplicar_funding(self, base, tasa, precio, contratos=None):
+        """Cobra o paga el funding (el largo paga si la tasa es positiva) sobre la posición abierta o, si se indica,
+        sobre `contratos` con signo (la que había en el momento de la liquidación). Devuelve lo pagado."""
+        if contratos is None:
+            p = self.st["pos"].get(base)
+            contratos = p["c"] if p else 0.0
+        if not contratos or not tasa:
             return 0.0
-        pago = p["c"] * self.merc[base]["tam"] * precio * tasa
+        pago = contratos * self.merc[base]["tam"] * precio * tasa
         self.st["caja"] -= pago
         self._guardar()
         return pago
+
+    def funding_vela(self, t, eventos, antes, precios):
+        """Funding liquidado durante la vela que cierra en t, DESPUÉS de procesar sus stops. eventos: {base: [(ts, tasa)]};
+        antes: {base: contratos con signo} al empezar la vela. Un evento en el cierre (ts ≥ t) se cobra a la posición que
+        quedó; uno anterior, si un stop cambió la posición dentro de la vela (el orden no se conoce), a la que más paga.
+        Devuelve {base: pagado}."""
+        t = pd.Timestamp(t)
+        out = {}
+        for b, evs in eventos.items():
+            c0 = antes.get(b, 0.0); c1 = self.st["pos"].get(b, {}).get("c", 0.0)
+            px = precios.get(b) or self.st["ultimo"].get(b) or (self.st["pos"].get(b) or {}).get("px")
+            for ts, tasa in evs:
+                if tasa is None or tasa != tasa or not px:
+                    continue
+                c = c1 if (c0 == c1 or pd.Timestamp(ts) >= t) else max((c0, c1), key=lambda x: x * tasa)
+                if c:
+                    out[b] = out.get(b, 0.0) + self.aplicar_funding(b, float(tasa), float(px), contratos=c)
+        return out
 
     def enviar_stop(self, base, lado, contratos, precio, client_oid=None):
         oid = client_oid or uuid.uuid4().hex
@@ -336,7 +377,10 @@ class Papel:
         return True
 
     def revisar_stops(self, velas_por_base):
-        """velas_por_base: base -> (o, h, l) de la vela recién cerrada. Llena al stop o a la apertura si la saltó."""
+        """velas_por_base: base -> (o, h, l) de la vela recién cerrada. El stop es una orden a mercado reduce-only que
+        se dispara en el precio del stop (o en la apertura si la vela abrió más allá) y llena con el mismo deslizamiento
+        que cualquier orden a mercado, más la comisión. Devuelve {orden: dict(base, lado, llenado, precio, gap)}."""
+        hechos = {}
         for oid, s in list(self.st["stops"].items()):
             if s.get("estado", "abierta") != "abierta":
                 continue
@@ -345,18 +389,22 @@ class Papel:
                 continue
             o, h, l = v[:3]
             if s["lado"] == "sell" and l <= s["px"]:
-                px = min(o, s["px"])
+                gatillo = min(o, s["px"])
             elif s["lado"] == "buy" and h >= s["px"]:
-                px = max(o, s["px"])
+                gatillo = max(o, s["px"])
             else:
                 continue
+            d = self._d(s["base"])
+            px = gatillo * (1 - d if s["lado"] == "sell" else 1 + d)
             q = self._acotar(s["base"], s["lado"], s["c"], True)
             if q > 0:
                 self._llenar(s["base"], q if s["lado"] == "buy" else -q, px)
                 s.update(estado="ejecutada", llenado=q, precio=px)
+                hechos[oid] = dict(base=s["base"], lado=s["lado"], llenado=q, precio=px, gap=gatillo != s["px"])
             else:
                 s.update(estado="cancelada")
-        hechos = [k for k, s in self.st["stops"].items() if s.get("estado", "abierta") != "abierta"]
-        for k in hechos[:-200]:
+        viejos = [k for k, s in self.st["stops"].items() if s.get("estado", "abierta") != "abierta"]
+        for k in viejos[:-200]:
             self.st["stops"].pop(k)
         self._guardar()
+        return hechos
