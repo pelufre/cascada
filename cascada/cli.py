@@ -19,7 +19,7 @@ from . import config as C
 def verificar():
     cfg = C.cargar()
     ok = True
-    print(f"Modo {cfg.modo} · nivel {cfg.nivel} · techo {cfg.techo:.0%} · alerta {cfg.alerta_caida:.0%} · corte {cfg.corte_caida:.0%}")
+    print(f"Modo {cfg.modo} · nivel {cfg.nivel} · p95 de caída 2020–23 {cfg.p95_is or 0:.0%} · alerta {cfg.alerta_caida:.0%} · corte {cfg.corte_caida:.0%}")
     print("Pesos:", {k: v for k, v in cfg.pesos.items()}, "desactivadas:", cfg.desactivadas)
     from .bolsa import KucoinReal, Publico
     try:

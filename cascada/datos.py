@@ -62,16 +62,27 @@ class Datos:
         return [x["simbolo"] for x in self.db.filas("SELECT simbolo FROM universo WHERE fecha=? ORDER BY puesto", (r[0]["f"],))]
 
     # ---------- volumen (filtro de liquidez de c40) ----------
-    def registrar_volumen(self, api_key, t):
-        """Guarda una vez por día el volumen 24 h de CMC, con la fecha del día que terminó. Devuelve True si guardó."""
+    def registrar_volumen(self, fuente, simbolos, t):
+        """Una vez por día guarda el volumen diario en USDT del perpetuo de cada símbolo (Binance; KuCoin si Binance no
+        lo lista), igual que la validación (protocolo §3). La primera vez completa los últimos 35 días. La tabla sigue
+        llamándose vol_cmc por compatibilidad. Devuelve (guardó, símbolos sin dato)."""
         dia = (pd.Timestamp(t).normalize() - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        if self.db.filas("SELECT 1 FROM vol_cmc WHERE fecha=? LIMIT 1", (dia,)):
-            return False
-        if not api_key:
-            raise RuntimeError("Falta CMC_API_KEY para el volumen")
-        for _, s, v in listado_cmc(api_key):
-            self.db.ejec("INSERT OR REPLACE INTO vol_cmc VALUES (?,?,?)", (dia, s, v))
-        return True
+        if self.db.get("volumen_perp_dia") == dia:
+            return False, []
+        if self.db.get("volumen_fuente") != "perp":          # al pasar de CMC al perpetuo se descarta lo viejo
+            self.db.ejec("DELETE FROM vol_cmc")
+            self.db.set("volumen_fuente", "perp")
+        faltan = []
+        for s_ in sorted(set(simbolos)):
+            serie = fuente.diario(s_, dias=35)
+            if serie is None or serie.empty:
+                faltan.append(s_)
+                continue
+            for d, v in serie.items():
+                if d.strftime("%Y-%m-%d") <= dia:
+                    self.db.ejec("INSERT OR REPLACE INTO vol_cmc VALUES (?,?,?)", (d.strftime("%Y-%m-%d"), s_, float(v)))
+        self.db.set("volumen_perp_dia", dia)
+        return True, faltan
 
     def volumenes(self, t, dias=30, min_dias=20):
         """Mediana del volumen diario (USD) de los últimos `dias` días cerrados antes de t, por símbolo.
@@ -119,3 +130,49 @@ class Datos:
         d4 = self.v4(base, hasta, dias)
         d = diario_desde_4h(d4)
         return d[d.n == 6].drop(columns="n")   # sólo días completos
+
+
+class VolumenPerp:
+    """Volumen diario en USDT de los perpetuos USDT-M: Binance (quote volume de la vela diaria, prefijos 1000 incluidos)
+    y, si Binance no tiene el contrato, KuCoin (contratos × tamaño × cierre). Es la medida de la validación."""
+    PREFIJOS = ("", "1000", "1000000")
+
+    def __init__(self, publico_kucoin, binance=None):
+        self.ku = publico_kucoin
+        self._bn = binance
+        self._ids = None
+
+    def _binance(self):
+        if self._bn is None:
+            import ccxt
+            self._bn = ccxt.binanceusdm({"enableRateLimit": True})
+        if self._ids is None:
+            m = self._bn.load_markets()
+            self._ids = {d["base"]: d["id"] for d in m.values()
+                         if d.get("swap") and d.get("linear") and d.get("quote") == "USDT" and d.get("active", True)}
+        return self._bn
+
+    def diario(self, base, dias=35):
+        """pd.Series fecha (día UTC cerrado) → volumen USDT. None si ninguna fuente lo tiene."""
+        try:
+            bn = self._binance()
+            for pre in self.PREFIJOS:
+                i = self._ids.get(pre + base)
+                if i:
+                    filas = bn.fapiPublicGetKlines({"symbol": i, "interval": "1d", "limit": dias + 1})
+                    hoy = pd.Timestamp.now("UTC").tz_localize(None).normalize()
+                    s = pd.Series({pd.to_datetime(int(f[0]), unit="ms"): float(f[7]) for f in filas})
+                    return s[s.index < hoy]
+        except Exception:
+            pass
+        try:
+            m = self.ku.mercados().get(base)
+            if not m:
+                return None
+            hoy_ms = int(pd.Timestamp.now("UTC").tz_localize(None).normalize().value // 10**6)
+            d = self.ku.velas(base, "1d", hoy_ms - (dias + 1) * 86400_000, hoy_ms)
+            if d.empty:
+                return None
+            return (d.v * m["tam"] * d.c).rename(None)
+        except Exception:
+            return None

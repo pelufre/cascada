@@ -79,7 +79,11 @@ class Resultado:
 
 class Corrida:
     def __init__(self, paquete, top50, resumen, universo, pesos, modo="IS", corrida="A", capital=None, desde=None,
-                 hasta=None, ruta_db=":memory:", funding_xbt=None, log_cada=500, registro=False):
+                 hasta=None, ruta_db=":memory:", funding_xbt=None, log_cada=500, registro=False, cargar=None, mercados=None,
+                 cfg=None):
+        """cargar(db) -> (bases, M, F) reemplaza al paquete (comparación con el papel); mercados: contratos a usar;
+        cfg: configuración del servicio (alerta y corte incluidos) en lugar de la de validación."""
+        self.cargar = cargar; self.mercados = mercados; self.cfg_fija = cfg
         self.lim = D.limite(modo)
         self.desde = pd.Timestamp(desde or D.INICIO_IS)
         self.hasta = min(pd.Timestamp(hasta), self.lim) if hasta else self.lim
@@ -90,6 +94,8 @@ class Corrida:
         self.registro = registro      # P&L acumulado por lote y vela (para la cartera por lotes, enmienda E10)
 
     def _cfg(self):
+        if self.cfg_fija is not None:
+            return self.cfg_fija
         cfg = C.Config(pesos=dict(self.pesos), prioridad=list(PRIORIDAD), capital_papel=self.capital,
                        corte_caida=9.0, alerta_caida=9.0, tope_con_balas_real=True, comision=COMISION)
         cfg.desactivadas = [k for k in PRIORIDAD if self.pesos.get(k, 0) <= 0]
@@ -101,9 +107,12 @@ class Corrida:
         if self.ruta_db != ":memory:":
             Path(self.ruta_db).unlink(missing_ok=True)
         db = Base(self.ruta_db)
-        bases, M = D.cargar_base(db, self.paquete, *self.archivos, hasta=self.hasta)
-        F = self.paquete.funding(self.hasta)
-        merc = mercados_de(self.corrida, bases, self.paquete.contratos())
+        if self.cargar:
+            bases, M, F = self.cargar(db)
+        else:
+            bases, M = D.cargar_base(db, self.paquete, *self.archivos, hasta=self.hasta)
+            F = self.paquete.funding(self.hasta)
+        merc = self.mercados or mercados_de(self.corrida, bases, self.paquete.contratos())
         pub = PublicoBT(M, merc)
         cfg = self._cfg()
         datos = Datos(db, pub)
@@ -225,7 +234,7 @@ class Corrida:
         serie = pd.DataFrame(filas).set_index("t").fillna({c: 0.0 for c in []})
         serie = serie.fillna(0.0)
         info = dict(segundos=round(time.time() - t0), desde=str(self.desde), hasta=str(self.hasta), corrida=self.corrida,
-                    pesos=self.pesos, capital=self.capital, perp=self.paquete.perp)
+                    pesos=self.pesos, capital=self.capital, perp=getattr(self.paquete, "perp", None))
         res = Resultado(serie, db, info)
         if self.registro:
             res.lotes_vela = pd.DataFrame(reg, columns=["k", "lote", "estrategia", "cum", "cum_peor", "noc"])

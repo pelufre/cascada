@@ -62,7 +62,7 @@ def kpis(db, cfg):
     cuota = valor_cuota(db, "total")
     s = serie_patrimonio(db, "total")
     u = db.get("ultimo_ciclo") or {}
-    d = dict(modo=cfg.modo, nivel=cfg.nivel, techo=cfg.techo, alerta=cfg.alerta_caida, corte=cfg.corte_caida,
+    d = dict(modo=cfg.modo, nivel=cfg.nivel, p95_is=cfg.p95_is, alerta=cfg.alerta_caida, corte=cfg.corte_caida,
              pausado=bool(db.get("pausado")), bloqueado=bool(db.get("bloqueado")), conciliacion_ok=bool(db.get("conciliacion_ok", True)),
              ultimo_ciclo=u.get("t"), latido=db.get("latido"), version=db.get("version"))
     if s.empty:

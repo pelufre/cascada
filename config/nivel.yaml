@@ -1,15 +1,14 @@
 # Configuración de Cascada. Después de cambiar algo: docker compose restart cascada
 modo: papel                  # papel | real   (empezar SIEMPRE en papel ~4 semanas)
-nivel: techo_intrabarra_20   # techo_intrabarra_10 | _20 | _25 | _30  (caída intrabarra máxima del backtest)
+nivel: nivel_30             # nivel_10 | nivel_20 | nivel_25 | nivel_30: pesos validados (p95 de caída 2020–23 ≈ el número)
 capital_papel: 3000          # USDT simulados en modo papel (se reparte entre cuenta principal y 30 balas)
 
-# Estrategias apagadas (su capital no se reparte). Con menos de ~5000 USD, Soldados queda bajo el contrato mínimo.
-desactivadas:
-  - sold_btc
+# Estrategias apagadas (su capital no se reparte). Ninguna: la validación con 3000 USDT y contratos reales las incluye.
+desactivadas: []
 
-# Riesgo. Si no se ponen: alerta = techo del nivel, corte = 1,5 × techo.
-# alerta_caida: 0.20
-# corte_caida: 0.30
+# Riesgo. Caída desde el máximo que avisa y que cierra todo. Corte ≈ p95 de caída de 2020–23 del nivel (29,6 % en el 30).
+alerta_caida: 0.20
+corte_caida: 0.30
 tope_nocional: 1.0           # nocional total ≤ 1 × patrimonio
 apalancamiento_exchange: 3   # sólo el margen que KuCoin reserva por posición; el riesgo lo fija tope_nocional
 

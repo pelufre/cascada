@@ -77,6 +77,15 @@ class Publico:
         except Exception:
             return None
 
+    def funding_liquidado(self, base, desde_ms):
+        """Tasas de funding ya liquidadas desde desde_ms (exclusivo): lista de (ts_ms, tasa). None si no se pudo leer."""
+        try:
+            h = self.ex.fetch_funding_rate_history(ccxt_sym(base), since=desde_ms + 1, limit=20)
+            return [(int(x["timestamp"]), float(x["fundingRate"])) for x in h
+                    if x.get("timestamp") and x["timestamp"] > desde_ms and x.get("fundingRate") is not None]
+        except Exception:
+            return None
+
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Interfaz común de la cuenta principal (real y papel):
@@ -296,6 +305,7 @@ class Papel:
             return 0.0
         pago = p["c"] * self.merc[base]["tam"] * precio * tasa
         self.st["caja"] -= pago
+        self._guardar()
         return pago
 
     def enviar_stop(self, base, lado, contratos, precio, client_oid=None):

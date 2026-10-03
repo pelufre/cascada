@@ -45,6 +45,8 @@ def limite(modo):
         if not autorizado_oos():
             raise PermissionError("El período 2024–2026 está cerrado: primero hay que congelar los pesos (protocolo §5.7)")
         return FIN_OOS
+    if modo == "PAPEL":          # comparación con el papel: datos posteriores al congelado de los pesos
+        return pd.Timestamp("2100-01-01")
     raise ValueError(modo)
 
 

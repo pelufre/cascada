@@ -16,13 +16,13 @@ from . import estadisticas as ES
 from . import riesgo
 from .balas import Balas, EjecutorRealBalas
 from .bolsa import KucoinReal, Papel, Publico
-from .datos import Datos
+from .datos import Datos, VolumenPerp
 from .db import Base
 from .motor import Motor
 from .telegram import AYUDA, Telegram
 from . import x as XM
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 log = logging.getLogger("cascada")
 CUATRO_H = pd.Timedelta(hours=4)
 ESPERA_CIERRE = 20          # segundos después del cierre de vela antes de decidir
@@ -57,6 +57,7 @@ class Sistema:
         self.pub_control = publico_control or (publico if publico is not None else Publico())
         self.x = XM.X(cfg.x, avisar=self.tg.avisar, max_dia=cfg.x_max_dia) if cfg.x_publicar else None
         self.datos = Datos(self.db, self.pub)
+        self.volumen = VolumenPerp(self.pub)
         w_bal = cfg.pesos.get("balas5", 0.0)
         if cfg.modo == "real":
             if not cfg.kucoin.get("apiKey"):
@@ -72,13 +73,16 @@ class Sistema:
             self.balas = Balas(self.db, cfg.capital_balas_real, real=real_balas, avisar=self.avisar) if real_balas else None
         else:
             cap = cfg.capital_papel
-            self.bolsa = Papel(self.db, self.pub.mercados(), capital=cap * (1 - w_bal), comision=cfg.comision)
+            self.bolsa = Papel(self.db, self.pub.mercados(), capital=cap * (1 - w_bal), comision=cfg.comision,
+                               desliz=dict(cfg.deslizamiento_papel))
             self.balas = Balas(self.db, cap * w_bal, avisar=self.avisar) if w_bal > 0 else None
         if self.balas and self.db.get("balas_inicial") is None:
             self.db.set("balas_inicial", self.balas.st["W"])
         self.motor = Motor(cfg, self.db, self.datos, self.bolsa, self.pub, avisar=self.avisar,
                            balas_patrimonio=lambda: self.balas.patrimonio() if self.balas else 0.0,
-                           balas_plano=lambda: not (self.balas and self.balas.st.get("activo")))
+                           balas_plano=lambda: not (self.balas and self.balas.st.get("activo")),
+                           balas_nocional=lambda: (self.balas.st["ntn"] * self.balas.st["W"])
+                           if self.balas and self.balas.st.get("activo") else 0.0)
 
     # ------------------------------------------------------------ piezas del ciclo
     def bases(self, t):
@@ -107,10 +111,13 @@ class Sistema:
             if db.incidencia("alta", "universo", f"No pude bajar el top 50 de CoinMarketCap: {e}"[:300]):
                 self.avisar("alta", f"No pude bajar el top 50: {e}"[:300])
         try:
-            self.datos.registrar_volumen(cfg.cmc_api_key, t)
+            _, sin_vol = self.datos.registrar_volumen(self.volumen, set(self.datos.universo(t)) | {"BTC", "ETH"}, t)
             db.resolver("volumen")
+            if sin_vol:
+                db.incidencia("baja", "volumen_faltante", "Sin volumen de perpetuo (Binance ni KuCoin), quedan fuera de "
+                              "Momentum alts: " + ", ".join(sin_vol)[:250], 24)
         except Exception as e:
-            db.incidencia("media", "volumen", f"No pude registrar el volumen de CoinMarketCap (filtro de liquidez de c40): {e}"[:300])
+            db.incidencia("media", "volumen", f"No pude registrar el volumen de los perpetuos (filtro de liquidez de c40): {e}"[:300])
         bases = self.bases(t)
         hasta = int(t.value // 10**6)
         errores = self.datos.actualizar(bases, hasta_ms=hasta)
@@ -139,9 +146,13 @@ class Sistema:
             d = self.datos.v4(b, t, dias=2)
             if len(d) and d.index[-1] == t - CUATRO_H:
                 velas[b] = (d.o.iat[-1], d.h.iat[-1], d.l.iat[-1], d.c.iat[-1])
+        if self.bolsa.modo == "papel":
+            self.bolsa.fijar_precios(precios)
+            self.funding_papel(t)
         # 30 balas (subcuenta) con la vela de BTC
         if self.balas:
             if "BTC" in velas:
+                self.capital_balas(velas["BTC"][3])
                 # al arrancar, la historia larga reconstruye sus series diarias y semanales
                 cierres = self.datos.v4("BTC", t, dias=60 if self.balas.st.get("calentado") else 420).c
                 self.balas.procesar(t, velas["BTC"], cierres, funding_8h=self.pub.funding("BTC"),
@@ -155,6 +166,43 @@ class Sistema:
         self.publicar_x(t)
         db.set("ultimo_ciclo_seg", round(time.time() - t0, 1))
         log.info("ciclo %s listo en %.0f s", t, time.time() - t0)
+
+    def capital_balas(self, px_btc):
+        """Protocolo E4, como en la validación: mientras 30 balas no tiene campaña abierta, su capital se iguala a
+        peso × patrimonio total (transferencia interna en papel). Durante la campaña no se toca. En real la subcuenta
+        tiene su propio capital (falta la transferencia entre cuentas por API)."""
+        w = self.cfg.pesos.get("balas5", 0.0)
+        s = self.balas.st
+        if self.bolsa.modo != "papel" or s.get("activo") or w <= 0:
+            return
+        E = self.bolsa.patrimonio() + self.balas.patrimonio(px_btc)
+        objetivo = w * E
+        if E <= 0 or abs(objetivo - s["W"]) < 0.01:
+            return
+        self.bolsa.st["caja"] -= objetivo - s["W"]
+        self.bolsa._guardar()
+        s["W"] = objetivo; s["eq"] = objetivo
+        self.db.set(self.balas.clave, s)
+
+    def funding_papel(self, t):
+        """Cobra o paga en papel el funding liquidado de cada posición desde el ciclo anterior (cada 8 h en KuCoin)."""
+        desde = self.db.get("funding_papel_ms")
+        hasta = int(pd.Timestamp(t).value // 10**6)
+        if desde is None:
+            self.db.set("funding_papel_ms", hasta)
+            return
+        pagado = 0.0
+        for b, p in list(self.bolsa.st["pos"].items()):
+            tasas = self.pub.funding_liquidado(b, desde)
+            if tasas is None:
+                self.db.incidencia("media", "funding_papel", f"No pude leer el funding de {b}: el papel no lo aplicó")
+                continue
+            px = self.bolsa.st["ultimo"].get(b, p["px"])
+            for ts, tasa in tasas:
+                if ts <= hasta:
+                    pagado += self.bolsa.aplicar_funding(b, tasa, px)
+        self.db.set("funding_papel_ms", hasta)
+        self.db.set("funding_papel_total", (self.db.get("funding_papel_total") or 0.0) + pagado)
 
     def liquidar_todo(self, t, motivo, px_btc=None):
         """Cierra la cuenta principal y 30 balas. Mientras algo quede abierto el estado sigue en «liquidando» y se
@@ -297,7 +345,7 @@ class Sistema:
             return "Quedó algo sin cerrar: sigo intentando en cada control (cada 15 min) y aviso cuando esté plano. Pausado."
         if nombre == "nivel":
             c = self.cfg
-            return (f"Nivel {c.nivel} (techo intrabarra {c.techo:.0%}), alerta {c.alerta_caida:.0%}, corte {c.corte_caida:.0%}\n"
+            return (f"Nivel {c.nivel} (p95 de caída 2020–23 {c.p95_is or 0:.0%}), alerta {c.alerta_caida:.0%}, corte {c.corte_caida:.0%}\n"
                     + "\n".join(f"  {k}: {v:.3f}" for k, v in c.pesos.items()) + "\nPara cambiarlo: editar config/nivel.yaml y reiniciar.")
         return "Comando desconocido. /ayuda"
 

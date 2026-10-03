@@ -5,22 +5,25 @@ el capital con prioridades (cortos Aberration, momentum alts c40, 30 balas 5x, R
 RSI(2) ETH). Decide cada 4 horas al cierre de vela, controla el riesgo cada 15 minutos, muestra todo en una web y
 avisa por Telegram.
 
-| Nivel | CAGR backtest 2019→sep 2026 | Peor caída intrabarra |
-|---|---|---|
-| `techo_intrabarra_10` | 36 % | −10 % |
-| `techo_intrabarra_20` (por defecto) | 83 % | −20 % |
-| `techo_intrabarra_25` | 115 % | −25 % |
-| `techo_intrabarra_30` | 184 % | −30 % |
+Pesos validados con metodología pre-registrada (`validacion/PROTOCOLO.md`): elegidos sólo con 2020–2023, congelados
+(commit 54ddf76) y probados una vez en 2024-01 → 2026-09. 3000 USDT con contratos reales de KuCoin, costos y funding.
 
-> El backtest no es una promesa. Empezar siempre en **modo papel** unas 4 semanas y comparar en la pestaña Backtest
-> que la curva en vivo quede dentro de la banda esperada.
+| Nivel | Tasa anual 2024–sep 2026 (prueba) | Caída máx. (prueba) | Tasa 2020–23 (ajuste) | p95 de caída 2020–23 |
+|---|---|---|---|---|
+| `nivel_10` | 8,4 % | −4,4 % | 16,5 % | 9,4 % |
+| `nivel_20` | 16,3 % | −9,0 % | 37,4 % | 19,2 % |
+| `nivel_25` | 24,5 % | −11,3 % | 50,6 % | 24,2 % |
+| `nivel_30` (por defecto) | 28,7 % | −14,0 % | 68,6 % | 29,6 % |
+
+> El backtest no es una promesa: las cifras de referencia son las del período de prueba, no las de ajuste. Empezar
+> siempre en **modo papel** (fase 3 del plan: 8–12 semanas) y comparar cada semana el papel contra el motor
+> (`validacion/comparar_papel.py`). El nivel operado (30 %) se eligió antes de abrir 2024–2026; los otros quedan como
+> perfiles de riesgo y no se eligen mirando la prueba.
 
 ## Capital
 
-- **Mínimo: 3000 USD**, con Soldados apagado (viene así en `config/nivel.yaml`): ≈ 2430 en la cuenta principal de futuros
-  USDT-M y ≈ 570 en la subcuenta de 30 balas (nivel 20).
-- **Recomendado: 5000 USD o más**, para que todos los lotes superen el contrato mínimo de KuCoin (sobre todo BTC) y se
-  pueda encender Soldados.
+- **3000 USD**, con las siete estrategias (la validación usó 3000 USDT con los contratos y mínimos reales de KuCoin).
+  En el nivel 30, 30 balas recibe ≈ 35 % del patrimonio al empezar cada campaña y la cuenta principal el resto.
 - La web avisa cuando un lote quedó bajo el mínimo y no se abrió.
 
 ## Instalación paso a paso (desde el celular con Termux)
@@ -82,8 +85,8 @@ Muestra el tamaño real de contrato de BTC y ETH en KuCoin, prueba CoinMarketCap
 - **Estrategias**: peso, capital pedido y concedido, lotes, % ganadoras y resultado.
 - **Incidencias**: lo que pasó y **lo que puede pasar** (cerca del corte o de la alerta, stops cerca, funding en contra,
   tope de capital, lotes bajo mínimo, cambio del top 50, liquidación de balas cerca, conciliación).
-- **Backtest**: curva en vivo contra la banda 5–95 % del backtest para el mismo plazo; curvas 2019→2026 por nivel y por
-  estrategia; tabla con CAGR, caídas y años.
+- **Backtest**: curva en vivo contra la banda 5–95 % del backtest para el mismo plazo; curvas validadas 2020→2026 por
+  nivel y por estrategia; tabla con la tasa de ajuste, la de prueba, caídas y años (`validacion/series_web.py`).
 - Botones **Pausar** y **Reanudar**.
 
 ## Telegram
@@ -119,7 +122,8 @@ papel cada post dice SIMULACIÓN. Sin enlaces: X cobra bastante más por post co
   cancelado o perdido se repone; si no se puede poner, el lote se cierra y avisa.
 - Nocional total ≤ 1 × patrimonio (`tope_nocional`); si los precios lo empujan arriba de 1,05 ×, recorta desde la última
   prioridad (sobre los objetivos, antes de mandar órdenes).
-- **Alerta** al llegar a la caída del techo del nivel (20 % en el nivel 20); **corte** a 1,5 × techo (30 %): pasa a
+- **Alerta** al 20 % de caída desde el máximo y **corte** al 30 % (≈ p95 de caída de 2020–23 del nivel 30;
+  `alerta_caida` y `corte_caida` en `config/nivel.yaml`). El corte pasa a
   «liquidando», cierra todo (principal y 30 balas) y **reintenta cada minuto hasta quedar plano**; las entradas quedan
   bloqueadas hasta `/reanudar`.
 - Si libro y exchange no coinciden, ese ciclo **sólo reduce** y avisa. Si el exchange tiene menos que el libro (stop o
@@ -133,7 +137,9 @@ papel cada post dice SIMULACIÓN. Sin enlaces: X cobra bastante más por post co
 
 1. En KuCoin crear la **subcuenta** para 30 balas. Crear claves de API **nuevas** para la cuenta principal y para la
    subcuenta: permiso de **trading de futuros** (y General), **sin retiros**, **restringidas a la IP del servidor**.
-2. Transferir el capital: ≈ 81 % a futuros USDT-M de la cuenta principal y ≈ 19 % a la subcuenta (nivel 20).
+2. Transferir el capital: ≈ 65 % a futuros USDT-M de la cuenta principal y ≈ 35 % a la subcuenta (nivel 30). En papel
+   el capital de 30 balas se iguala a peso × patrimonio al empezar cada campaña; en real todavía no hay transferencia
+   automática entre cuentas, así que la subcuenta queda con lo depositado hasta reajustarla a mano.
 3. Completar las claves en `.env`. En `config/nivel.yaml`: `modo: real`; para 30 balas `balas_real: true` y
    `capital_balas_real:` con lo depositado. Recomendado: arrancar unos días con `balas_real: false` y montos chicos.
 4. La cuenta real usa su propia base (`datos/cascada_real.db`); la historia de papel queda guardada en
@@ -152,6 +158,12 @@ docker compose restart cascada                 # después de cambiar config/nive
 crontab -e   # agregar:  15 3 * * * /root/cascada/scripts/respaldo.sh   (copia diaria de la base, 30 días)
 ```
 
+Comparación semanal papel ↔ motor (fase 3): corre el motor de backtest sobre las mismas velas, universo y volúmenes que
+tuvo el servicio y lista cada diferencia de entradas, salidas, cantidades y precios (sale con código 1 si hay alguna):
+```sh
+docker compose exec cascada python -m validacion.comparar_papel
+```
+
 ## Estructura
 
 ```
@@ -163,12 +175,14 @@ cascada/
   balas.py         30 balas 5x en la subcuenta (futuro inverso XBTUSDM)
   riesgo.py        caída y previsión de incidencias
   bolsa.py         KuCoin real (ccxt) y exchange simulado (papel)
-  datos.py         velas 4h incrementales y top 50 semanal de CoinMarketCap
+  datos.py         velas 4h incrementales, top 50 semanal de CoinMarketCap y volumen diario de los perpetuos
   web.py, estatico/ web
   telegram.py      avisos y comandos
   cli.py           verificar, estado, aporte, telegram-chat, reiniciar-papel
-datos_backtest/    curvas del backtest para la web
-tests/             defectos de la auditoría, paridad con el backtest y simulación de punta a punta
+datos_backtest/    curvas del backtest validado para la web
+validacion/        protocolo, motor de backtest (el mismo código del servicio), selección de pesos, pesos congelados,
+                   evaluación de la prueba y comparación papel ↔ motor
+tests/             defectos de la auditoría, servicio (red, reinicios, velas faltantes, balas, funding) y configuración
 ```
 
 ## Pruebas hechas
@@ -180,8 +194,11 @@ tests/             defectos de la auditoría, paridad con el backtest y simulaci
 - **Paridad de la cuenta principal**: el motor en papel, vela por vela de 2025-01 a 2026-09, coincide con el backtest en
   los días en mercado (cortos 100 %, momentum 99,2 %, RSI(2) ETH 99,1 %, WR2 97,8 %, RSI(2) BTC 95,9 %, Soldados 94,0 %).
   El motor 1.1 da exactamente los mismos días en mercado que el 1.0 y el mismo patrimonio final (±0,01 %).
-- **Filtro de liquidez de momentum (c40)**: mediana de 30 días del volumen diario ≥ 2 M USD, con el volumen global de
-  CoinMarketCap que el sistema registra una vez por día. Durante los primeros 20 días usa los días que tenga.
+- **Servicio** (`python -m tests.test_servicio`): red que se cae antes o después de llenar una orden, reinicio a mitad
+  de ciclo, velas y precios faltantes, volumen de los perpetuos, capital de 30 balas por campaña y funding del papel.
+- **Configuración** (`python -m tests.test_config`): los pesos del servicio son exactamente los congelados.
+- **Filtro de liquidez de momentum (c40)**: mediana de 30 días del volumen diario ≥ 2 M USD, con el volumen en USDT del
+  perpetuo (Binance; KuCoin si Binance no lo lista), la misma medida de la validación. La primera vez completa 35 días.
 - **Paridad de 30 balas**: 2019→2026, mismas 279 campañas y 0 liquidaciones que el backtest; patrimonio final 22,12 vs
   22,08 (correlación diaria 0,9999).
 - **Simulación de punta a punta** sin internet: ciclos, balas, controles, comandos y todas las rutas de la web.

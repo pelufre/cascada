@@ -229,7 +229,7 @@ class MomentumC40(Estrategia):
         b = D["BTC"].c
         btc_ok = b.iat[-1] > b.iloc[-140:].mean() and b.iat[-1] / b.iat[-85] - 1 > 0
         elig = [s for s in D if (s in universo or s in ("BTC", "ETH")) and len(D[s]) >= self.hmin]
-        # liquidez: mediana del volumen diario de 30 días >= 2 M USD (volumen global de CoinMarketCap)
+        # liquidez: mediana del volumen diario de 30 días >= 2 M USD (volumen del perpetuo, como la validación)
         vol, ndias = datos.volumenes(t) if hasattr(datos, "volumenes") else ({}, 0)
         st["vol_dias"] = ndias
         if ndias:
