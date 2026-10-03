@@ -43,6 +43,8 @@ class Config:
     capital_papel: float = 3000.0
     balas_real: bool = False               # en modo real, 30 balas opera sólo si esto es true y hay claves de la subcuenta
     capital_balas_real: float = 0.0        # USD depositados en la subcuenta de balas (contabilidad inicial)
+    balas_transferir: bool = False         # real: iguala la subcuenta a peso × patrimonio entre campañas (E4)
+    kucoin_balas_uid: str = ""             # UID de la subcuenta (KUCOIN_BALAS_UID en .env)
     comision: float = 0.0006               # taker KuCoin futuros por lado (estimada)
     # deslizamiento del modo papel por lado, el mismo de la validación (BTC y ETH 0,05 %, el resto 0,10 %)
     deslizamiento_papel: dict = field(default_factory=lambda: {"BTC": 0.0005, "ETH": 0.0005, "_": 0.0010})
@@ -94,6 +96,7 @@ def cargar(ruta: str | Path | None = None) -> Config:
     c.x = dict(api_key=e.get("X_API_KEY", ""), api_secret=e.get("X_API_SECRET", ""),
                access_token=e.get("X_ACCESS_TOKEN", ""), access_secret=e.get("X_ACCESS_SECRET", ""))
     c.kucoin = dict(apiKey=e.get("KUCOIN_KEY", ""), secret=e.get("KUCOIN_SECRET", ""), password=e.get("KUCOIN_PASSPHRASE", ""))
+    c.kucoin_balas_uid = e.get("KUCOIN_BALAS_UID", c.kucoin_balas_uid)
     c.kucoin_balas = dict(apiKey=e.get("KUCOIN_BALAS_KEY", ""), secret=e.get("KUCOIN_BALAS_SECRET", ""),
                           password=e.get("KUCOIN_BALAS_PASSPHRASE", ""))
     return c

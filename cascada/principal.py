@@ -19,6 +19,7 @@ from .bolsa import KucoinReal, Papel, Publico
 from .datos import Datos, VolumenPerp
 from .db import Base
 from .motor import Motor
+from .subcuenta import TransferidorSubcuenta, planificar
 from .telegram import AYUDA, Telegram
 from . import x as XM
 
@@ -59,6 +60,7 @@ class Sistema:
         self.datos = Datos(self.db, self.pub)
         self.volumen = VolumenPerp(self.pub)
         w_bal = cfg.pesos.get("balas5", 0.0)
+        self.transferidor = None
         if cfg.modo == "real":
             if not cfg.kucoin.get("apiKey"):
                 raise SystemExit("Modo real sin claves de KuCoin en .env")
@@ -71,6 +73,8 @@ class Sistema:
                 if "balas5" not in cfg.desactivadas:
                     cfg.desactivadas.append("balas5")
             self.balas = Balas(self.db, cfg.capital_balas_real, real=real_balas, avisar=self.avisar) if real_balas else None
+            if real_balas and cfg.balas_transferir:
+                self.transferidor = TransferidorSubcuenta(cfg.kucoin_balas_uid, real_balas, cred_principal=cfg.kucoin)
         else:
             cap = cfg.capital_papel
             self.bolsa = Papel(self.db, self.pub.mercados(), capital=cap * (1 - w_bal), comision=cfg.comision,
@@ -170,10 +174,14 @@ class Sistema:
     def capital_balas(self, px_btc):
         """Protocolo E4, como en la validación: mientras 30 balas no tiene campaña abierta, su capital se iguala a
         peso × patrimonio total (transferencia interna en papel). Durante la campaña no se toca. En real la subcuenta
-        tiene su propio capital (falta la transferencia entre cuentas por API)."""
+        tiene su propio capital y, con `balas_transferir: true`, se iguala con transferencias reales (ver subcuenta.py)."""
         w = self.cfg.pesos.get("balas5", 0.0)
         s = self.balas.st
-        if self.bolsa.modo != "papel" or s.get("activo") or w <= 0:
+        if s.get("activo") or w <= 0:
+            return
+        if self.bolsa.modo != "papel":
+            if self.transferidor:
+                self.reequilibrar_subcuenta(px_btc, w)
             return
         E = self.bolsa.patrimonio() + self.balas.patrimonio(px_btc)
         objetivo = w * E
@@ -183,6 +191,41 @@ class Sistema:
         self.bolsa._guardar()
         s["W"] = objetivo; s["eq"] = objetivo
         self.db.set(self.balas.clave, s)
+
+    def reequilibrar_subcuenta(self, px_btc, w):
+        """Real: transfiere entre la principal y la subcuenta la diferencia con peso × patrimonio total, y deja el
+        capital del modelo de 30 balas igual a lo que de verdad hay en la subcuenta."""
+        db, s = self.db, self.balas.st
+        if db.get("liquidando"):
+            return
+        try:
+            usdt, btc_usd = self.transferidor.saldo_sub(px_btc)
+            E_main = self.bolsa.patrimonio()
+            plan = planificar(E_main, self.bolsa.usdt_libre(), usdt, btc_usd, w)
+            if plan["accion"] == "enviar":
+                self.transferidor.enviar(plan["monto"])
+            elif plan["accion"] == "traer":
+                self.transferidor.traer(plan["monto"])
+            antes = usdt + btc_usd
+            if plan["accion"] != "nada":
+                time.sleep(2)
+                usdt, btc_usd = self.transferidor.saldo_sub(px_btc)
+                reg = db.get("transferencias_balas") or []
+                reg.append(dict(ts=time.time(), accion=plan["accion"], monto=plan["monto"], objetivo=round(plan["objetivo"], 2),
+                                E_main=round(E_main, 2), sub_antes=round(antes, 2), sub_despues=round(usdt + btc_usd, 2)))
+                db.set("transferencias_balas", reg[-200:])
+                self.avisar("info", f"30 balas: {'envié' if plan['accion'] == 'enviar' else 'traje'} {plan['monto']:.2f} USDT "
+                                    f"({'principal → subcuenta' if plan['accion'] == 'enviar' else 'subcuenta → principal'}); "
+                                    f"subcuenta {antes:.2f} → {usdt + btc_usd:.2f}, objetivo {plan['objetivo']:.2f}")
+            if plan["motivo"] and plan["motivo"] != "diferencia chica":
+                db.incidencia("media", "balas_capital", f"30 balas: {plan['motivo']}"[:300], 24)
+            s["W"] = s["eq"] = usdt + btc_usd          # la próxima campaña arranca con lo que de verdad hay
+            db.set(self.balas.clave, s)
+            db.resolver("transferencia_balas")
+        except Exception as e:
+            log.exception("reequilibrar subcuenta")
+            if db.incidencia("alta", "transferencia_balas", f"No pude igualar el capital de 30 balas: {e}"[:300]):
+                self.avisar("alta", f"No pude igualar el capital de 30 balas con la subcuenta: {e}"[:400])
 
     def funding_papel(self, t):
         """Cobra o paga en papel el funding liquidado de cada posición desde el ciclo anterior (cada 8 h en KuCoin)."""

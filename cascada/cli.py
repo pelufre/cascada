@@ -6,6 +6,7 @@
   volumen [BASE …]     volumen diario del perpetuo que usa el filtro de liquidez de c40 (y de qué fuente sale)
   reiniciar-papel      borra la base (sólo modo papel) para empezar de cero
   balas-prueba [USDT]  prueba la ejecución real de 30 balas en la subcuenta con montos mínimos (12 USDT por defecto)
+  transferencia-prueba [USDT]  prueba el reequilibrio real de 30 balas: manda USDT a la subcuenta y los trae (15 por defecto)
   x-prueba             comprueba las credenciales de X y publica un post de prueba
   telegram-chat        muestra el chat_id de quien le escribió al bot (para TELEGRAM_CHAT_ID)
 """
@@ -169,6 +170,69 @@ def prueba_balas(usdt=12.0, todo_si=False):
     resumen()
 
 
+def prueba_transferencia(usdt=15.0, todo_si=False):
+    """Prueba guiada del reequilibrio real de 30 balas: manda `usdt` de la principal a la subcuenta y los trae de vuelta."""
+    import json
+    import logging
+    logging.basicConfig(level=logging.INFO, format="   · %(message)s")
+    cfg = C.cargar()
+    faltan = [n for n, v in (("KUCOIN_KEY/SECRET/PASSPHRASE (principal)", cfg.kucoin.get("apiKey")),
+                             ("KUCOIN_BALAS_KEY/SECRET/PASSPHRASE (subcuenta)", cfg.kucoin_balas.get("apiKey")),
+                             ("KUCOIN_BALAS_UID (UID de la subcuenta)", cfg.kucoin_balas_uid)) if not v]
+    if faltan:
+        sys.exit("Faltan en .env: " + ", ".join(faltan))
+    from .balas_real import EjecutorRealBalas
+    from .bolsa import KucoinReal, Publico
+    from .subcuenta import TransferidorSubcuenta
+    reg = []
+
+    def ver(titulo, x):
+        print(f"\n== {titulo}\n{json.dumps(x, default=str, indent=1, ensure_ascii=False)}")
+        reg.append((titulo, x))
+
+    def resumen():
+        print("\n================ RESUMEN PARA MANDAR (no contiene claves) ================")
+        for t, x in reg:
+            print(f"- {t}: {json.dumps(x, default=str, ensure_ascii=False)[:600]}")
+        print("========================================================================")
+
+    def paso(texto):
+        print(f"\n>>> {texto}")
+        if todo_si:
+            return True
+        if input("    ¿Sigo? (s = sí / n = cortar): ").strip().lower() != "s":
+            resumen(); return False
+        return True
+
+    try:
+        pub = Publico()
+        principal = KucoinReal(cfg.kucoin, pub)
+        ej = EjecutorRealBalas(cfg.kucoin_balas)
+        t = TransferidorSubcuenta(cfg.kucoin_balas_uid, ej, cred_principal=cfg.kucoin)
+        px = pub.precios(["BTC"]).get("BTC")
+
+        def saldos(titulo):
+            u, b = t.saldo_sub(px)
+            ver(titulo, dict(principal_patrimonio=round(principal.patrimonio(), 2), principal_libre=round(principal.usdt_libre(), 2),
+                             subcuenta_usdt=round(u, 2), subcuenta_btc_usd=round(b, 2)))
+        saldos("Saldos iniciales")
+    except Exception as e:
+        reg.append(("FALLO al leer", str(e))); resumen()
+        sys.exit(f"No pude leer las cuentas (claves, permisos, IP o UID): {e}")
+    try:
+        if not paso(f"1/2 Mandar {usdt:.2f} USDT de futuros de la principal a la subcuenta"):
+            return
+        t.enviar(usdt); ver("Ruta principal → subcuenta", t.ruta_ida); time.sleep(3); saldos("Después de mandar")
+        if not paso(f"2/2 Traer {usdt:.2f} USDT de la subcuenta a futuros de la principal"):
+            return
+        t.traer(usdt); ver("Ruta subcuenta → principal", t.ruta_vuelta); time.sleep(3); saldos("Después de traer")
+        print("\nListo: las dos rutas funcionan. Para activarlo: `balas_transferir: true` en config/nivel.yaml.")
+    except Exception as e:
+        reg.append(("FALLO", str(e)))
+        print(f"\n!!! FALLÓ: {e}")
+    resumen()
+
+
 def main(argv=None):
     a = argv if argv is not None else sys.argv[1:]
     if not a or a[0] in ("-h", "--help", "ayuda"):
@@ -178,6 +242,9 @@ def main(argv=None):
         sys.exit(0 if verificar() else 1)
     if cmd == "balas-prueba":
         prueba_balas(float(a[1]) if len(a) > 1 else 12.0, "--si" in a)
+        return
+    if cmd == "transferencia-prueba":
+        prueba_transferencia(float(a[1]) if len(a) > 1 and not a[1].startswith("-") else 15.0, "--si" in a)
         return
     if cmd == "x-prueba":
         from .x import X

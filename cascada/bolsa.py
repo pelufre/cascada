@@ -125,6 +125,14 @@ class KucoinReal:
         except Exception:
             return float(b["total"]["USDT"])
 
+    def usdt_libre(self):
+        """USDT disponible en futuros (no usado como margen)."""
+        b = self.ex.fetch_balance({"currency": "USDT"})
+        try:
+            return float(b["info"]["data"]["availableBalance"])
+        except Exception:
+            return float(b["free"]["USDT"])
+
     def posiciones(self):
         out = {}
         for p in self.ex.fetch_positions():

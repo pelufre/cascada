@@ -15,6 +15,9 @@ apalancamiento_exchange: 3   # sólo el margen que KuCoin reserva por posición;
 # 30 balas en modo real: requiere la subcuenta con sus claves en .env. Mientras sea false, en real no opera.
 balas_real: false
 capital_balas_real: 0        # USD depositados en la subcuenta de balas al arrancar
+# Iguala la subcuenta a peso × patrimonio total entre campañas (como la validación). Requiere KUCOIN_BALAS_UID y el
+# permiso «FlexTransfers» en la clave de la principal. Probar antes: cli transferencia-prueba 15
+balas_transferir: false
 
 # X (Twitter): publica cada ciclo con operaciones (un post) y un resumen diario. X cobra por post.
 x_publicar: false

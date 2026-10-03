@@ -19,3 +19,4 @@
 | 2026-10-02 | Evaluación OOS informativa nivel 20 (pesos 54ddf76): APROBADA | resultado_oos_nivel20.json sha256 ba8909ca3e75d3dd |
 | 2026-10-02 | Evaluación OOS informativa nivel 25 (pesos 54ddf76): APROBADA | resultado_oos_nivel25.json sha256 8d57b488748d42e4 |
 | 2026-10-02 | Servicio 1.2.0 alineado con lo validado: niveles congelados (nivel 30 por defecto, Soldados activo), tope con el nocional real de balas, capital de balas por campaña (E4) y funding en papel, deslizamiento del papel como el backtest, liquidez de c40 con volumen del perpetuo, alerta 20 % / corte 30 %. Comparación papel ↔ motor (comparar_papel.py) | este commit |
+| 2026-10-03 | Real: reequilibrio automático de la subcuenta de 30 balas entre campañas (E4 en real), apagado por defecto (balas_transferir) hasta probarlo con cli transferencia-prueba | este commit |

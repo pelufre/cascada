@@ -137,9 +137,11 @@ papel cada post dice SIMULACIÓN. Sin enlaces: X cobra bastante más por post co
 
 1. En KuCoin crear la **subcuenta** para 30 balas. Crear claves de API **nuevas** para la cuenta principal y para la
    subcuenta: permiso de **trading de futuros** (y General), **sin retiros**, **restringidas a la IP del servidor**.
-2. Transferir el capital: ≈ 65 % a futuros USDT-M de la cuenta principal y ≈ 35 % a la subcuenta (nivel 30). En papel
-   el capital de 30 balas se iguala a peso × patrimonio al empezar cada campaña; en real todavía no hay transferencia
-   automática entre cuentas, así que la subcuenta queda con lo depositado hasta reajustarla a mano.
+2. Transferir el capital: ≈ 65 % a futuros USDT-M de la cuenta principal y ≈ 35 % a la subcuenta (nivel 30). Entre
+   campañas, la subcuenta se iguala sola a peso × patrimonio total (como en la validación y en el papel) si se pone
+   `balas_transferir: true`: hace falta `KUCOIN_BALAS_UID` en `.env` y el permiso «FlexTransfers» (no es de retiro;
+   KuCoin exige restricción de IP) en la clave de la principal. Probarlo antes con
+   `docker compose exec -it cascada python -m cascada.cli transferencia-prueba 15` (manda 15 USDT y los trae).
 3. Completar las claves en `.env`. En `config/nivel.yaml`: `modo: real`; para 30 balas `balas_real: true` y
    `capital_balas_real:` con lo depositado. Recomendado: arrancar unos días con `balas_real: false` y montos chicos.
 4. La cuenta real usa su propia base (`datos/cascada_real.db`); la historia de papel queda guardada en
@@ -197,6 +199,8 @@ tests/             defectos de la auditoría, servicio (red, reinicios, velas fa
 - **Servicio** (`python -m tests.test_servicio`): red que se cae antes o después de llenar una orden, reinicio a mitad
   de ciclo, velas y precios faltantes, volumen de los perpetuos, capital de 30 balas por campaña y funding del papel.
 - **Configuración** (`python -m tests.test_config`): los pesos del servicio son exactamente los congelados.
+- **Subcuenta de 30 balas** (`python -m tests.test_subcuenta`): plan del reequilibrio (colchón de la principal,
+  diferencias chicas), rutas de transferencia con alternativa y deshacer, y que nunca se toque durante una campaña.
 - **Filtro de liquidez de momentum (c40)**: mediana de 30 días del volumen diario ≥ 2 M USD, con el volumen en USDT del
   perpetuo (Binance; KuCoin si Binance no lo lista), la misma medida de la validación. La primera vez completa 35 días.
 - **Paridad de 30 balas**: 2019→2026, mismas 279 campañas y 0 liquidaciones que el backtest; patrimonio final 22,12 vs
