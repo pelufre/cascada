@@ -62,12 +62,15 @@ def solos(a):
     RES.mkdir(parents=True, exist_ok=True)
     out = {}
     with ProcessPoolExecutor(a.procesos) as ex:
-        for k, m in ex.map(_solo, [(k, a) for k in NOMBRES]):
+        hechos = json.loads((RES / "solos_is.json").read_text()) if (RES / "solos_is.json").exists() else {}
+        faltan = [k for k in NOMBRES if not (RES / f"is_A_{k}.pkl").exists() or not (RES / f"is_A_{k}_lotes.pkl").exists()]
+        out.update({k: v for k, v in hechos.items() if k not in faltan})
+        for k, m in ex.map(_solo, [(k, a) for k in faltan]):
             out[k] = m
             print(f"{k:9s} tasa {m['cagr']:7.1%}  caída pesimista {m['dd_pesimista']:6.1%}  estricta {m['dd_estricta']:6.1%}"
                   f"  Sharpe {m['sharpe']:.2f}  lotes {m['lotes']}" + (f"  solapes {m.get('solapes_cortos_largos')}" if k == "par_alts" else ""),
                   flush=True)
-    (RES / "solos_is.json").write_text(json.dumps(out, indent=1, ensure_ascii=False, default=float))
+            (RES / "solos_is.json").write_text(json.dumps(out, indent=1, ensure_ascii=False, default=float))
 
 
 def _cart():

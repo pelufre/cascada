@@ -254,7 +254,7 @@ class Corrida:
         res = Resultado(serie, db, info)
         if self.registro:
             res.lotes_vela = pd.DataFrame(reg, columns=["k", "lote", "estrategia", "cum", "cum_peor", "noc"])
-            res.lotes_vela["t"] = serie.index[res.lotes_vela.k.values]
+            res.lotes_vela["t"] = serie.index[res.lotes_vela.k.values.astype(int)] if len(reg) else pd.Series(dtype="datetime64[ns]")
         return res
 
 
