@@ -175,3 +175,8 @@ La siguiente es de **2026-10-02, sólo con IS y antes de abrir el OOS**:
   todos los pesos por el mismo factor exacto (sin volver a redondear a la grilla), y §5.4 busca el mayor factor que
   cumple con el motor completo. La selección hecha con E2 se descarta; queda en `resultados/e2_cartera_rapida/` como
   registro (con escala común el nivel 10 % daba 7 % anual en IS y el 20 %, 20 %).
+
+- **Decisión §5.6 (2026-10-02).** El usuario eligió el **nivel 30 %** mirando sólo IS (tabla por nivel de la corrida B,
+  2020–2023). Pesos congelados en `validacion/pesos_congelados.json` (variante 30 balas; p95 IS motor completo B 29,6 %).
+  `evaluar_oos.py` se corrigió antes de congelar (C2 toma el p95 del motor completo B del archivo congelado; la
+  comparación «igual riesgo» se escala con la cartera por lotes) y se ensayó sobre IS 2023 con `--prueba`.

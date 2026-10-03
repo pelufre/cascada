@@ -13,3 +13,4 @@
 | 2026-10-02 | Enmienda E10 (cartera por lotes). Corridas solas repetidas con registro por lote (mismos resultados). La selección con E2 se descarta y se guarda en resultados/e2_cartera_rapida/ | este commit |
 | 2026-10-02 | Selección de pesos IS con E10 (1500 direcciones): 30 balas se queda (41,6 % vs 35,4 %); niveles 10/20/25/30 → 17,1/38,1/51,7/68,4 % anual IS | este commit |
 | 2026-10-02 | Verificación §5.4 con el motor completo (A y B): los cuatro niveles cumplen con factor 1 (B: 16,5/37,4/50,6/68,6 % anual IS; p95 9,4/19,2/24,2/29,6 %) | este commit |
+| 2026-10-02 | Nivel elegido por el usuario: 30 %. Pesos congelados (pesos_congelados.json sha256 5da5dcd4398b996a…) | este commit |

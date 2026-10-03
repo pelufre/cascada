@@ -15,6 +15,7 @@ import pandas as pd
 from . import pesos as P
 from .correr_is import funding_xbt
 from .datos import CONGELADO, CORTE_IS, FIN_OOS, Paquete, limite
+from .cartera_lotes import cargar
 from .motor_bt import Corrida, metricas
 from .verificar_motor import p95_motor
 
@@ -28,51 +29,75 @@ def por_año(serie):
     return {str(i.year): float(v / v0 - 1) for i, v, v0 in zip(e.index, e.values, e0[:-1])}
 
 
+def _caso(args):
+    nombre, pesos, corrida, a, desde, hasta, modo, guardar = args
+    p = Paquete(a.datos)
+    fx = funding_xbt(a.xbt, p, hasta)
+    rr = Corrida(p, a.top50, a.resumen, a.universo, pesos, modo=modo, corrida=corrida, desde=desde, hasta=hasta,
+                 funding_xbt=fx, log_cada=0).correr()
+    m = metricas(rr.serie); m["p95"] = p95_motor(rr.serie); m["por_año"] = por_año(rr.serie)
+    ops = rr.operaciones()
+    if len(ops):
+        m.update(lotes=len(ops), ganadoras=float((ops.pnl > 0).mean()), peor_lote=float(ops.pnl.min()),
+                 factor_beneficio=float(ops.pnl[ops.pnl > 0].sum() / max(-ops.pnl[ops.pnl < 0].sum(), 1e-9)),
+                 por_estrategia={k: float(v) for k, v in ops.groupby("estrategia").pnl.sum().items()})
+    m.update(funding=float(rr.serie.funding.iat[-1]),
+             comisiones=float(rr.db.filas("SELECT COALESCE(SUM(comision),0) s FROM operaciones")[0]["s"]), pesos=pesos)
+    if guardar:
+        rr.serie.to_pickle(RES / f"oos_{nombre}_{corrida}.pkl")
+    return f"{nombre}_{corrida}", m
+
+
+def igual_riesgo(w, L):
+    """Pesos iguales por riesgo (inversa de la volatilidad diaria de IS de cada estrategia sola), con el mayor factor común
+    que deja el p95 (2000 remuestreos, cartera por lotes) ≤ L. Sólo usa IS."""
+    nombres = list(w)
+    cart = cargar({k: RES / f"is_A_{k}.pkl" for k in nombres}, {k: RES / f"is_A_{k}_lotes.pkl" for k in nombres}, nombres)
+    vol = []
+    for k in nombres:
+        e = pd.read_pickle(RES / f"is_A_{k}.pkl").E
+        vol.append(e.resample("D").last().pct_change().std())
+    base = np.where(np.array([w[k] for k in nombres]) > 0, 1 / np.maximum(np.array(vol), 1e-9), 0.0)
+    base = base / base.sum()
+    R = P.remuestreos(len(cart.inicios), 2000)
+    fs = np.linspace(1.0 / base.max(), 0.01, 200)
+    _, p95 = P.evaluar_lotes(base[None, :] * fs[:, None], cart, R)
+    f = fs[np.argmax(p95 <= L)] if np.any(p95 <= L) else fs[-1]
+    return {k: float(v) for k, v in zip(nombres, base * f)}
+
+
 def main(a):
-    limite("OOS")                                       # falla si los pesos no están congelados en un commit
-    cong = json.loads(CONGELADO.read_text())
-    commit = subprocess.run(["git", "log", "-1", "--format=%H", "--", str(CONGELADO)], cwd=RAIZ, capture_output=True, text=True).stdout.strip()
+    from concurrent.futures import ProcessPoolExecutor
+    if a.prueba:            # ensayo del script sobre IS (2023), sin abrir el OOS ni escribir resultados
+        cong = json.loads(a.prueba_pesos.read_text()) if a.prueba_pesos else None
+        desde, hasta, modo = pd.Timestamp("2023-01-01"), CORTE_IS, "IS"
+        commit = "prueba"
+    else:
+        limite("OOS")                                   # falla si los pesos no están congelados en un commit
+        cong = json.loads(CONGELADO.read_text())
+        commit = subprocess.run(["git", "log", "-1", "--format=%H", "--", str(CONGELADO)], cwd=RAIZ, capture_output=True,
+                                text=True).stdout.strip()
+        desde, hasta, modo = CORTE_IS, FIN_OOS, "OOS"
     nivel = cong["nivel_elegido"]; L = int(nivel) / 100
     w = cong["pesos_por_nivel"][nivel]
     var = cong["variante_balas"]
-    sel = json.loads((RES / "seleccion_is.json").read_text())
-    p95_is = sel.get("verificacion_motor", {}).get(nivel, {}).get("resultados", {}).get("B", {}).get("p95") \
-        or sel["niveles"][nivel]["p95_is"]
-    p = Paquete(a.datos)
-    fx = funding_xbt(a.xbt, p, FIN_OOS)
-    # pesos iguales por riesgo (inversa de la volatilidad diaria de IS), escalados al mismo nivel con el modelo rápido
-    nombres = list(w)
-    rutas = {k: RES / f"is_A_{k}.pkl" for k in nombres}
-    idx, nom, r, rp, x = P.series(rutas)
-    d = P.preparar(idx, r, rp, x)
-    vol = np.array([pd.Series(r[:, j], idx).add(1).resample("D").prod().sub(1).std() for j in range(len(nom))])
-    base = np.where(np.array([w[k] for k in nom]) > 0, 1 / np.maximum(vol, 1e-9), 0); base = base / base.sum()
-    s = P._escala_max(base, L, d, P.remuestreos(len(d[4]), 2000))
-    igual = {k: float(v) for k, v in zip(nom, P.a_grilla(base * s))}
+    p95_is = cong["verificacion_motor"][nivel]["resultados"]["B"]["p95"]      # §7 C2: motor completo, corrida B, IS
     casos = {
         "cartera": w,
         "btc_mantener": {"hold_btc": 1.0}, "eth_mantener": {"hold_eth": 1.0}, "btc_tendencia": {"btc_tend": 1.0},
-        "igual_riesgo": igual,
+        "igual_riesgo": igual_riesgo(w, L),
         "sin_balas": {k: (0.0 if k == var else v) for k, v in w.items()},
         "sin_alts": {k: (0.0 if k in ("ab_cortos", "mom_alts") else v) for k, v in w.items()},
     }
-    out = dict(protocolo_commit_pesos=commit, nivel=nivel, variante=var, tramo=f"{CORTE_IS.date()} → {FIN_OOS.date()} (excl.)",
+    out = dict(protocolo_commit_pesos=commit, nivel=nivel, variante=var, p95_is_B=p95_is,
+               tramo=f"{desde.date()} → {hasta.date()} (excl.)",
                ejecutado=time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()), casos={})
-    for nombre, pesos in casos.items():
-        for corrida in (("A", "B") if nombre == "cartera" else ("B",)):
-            rr = Corrida(p, a.top50, a.resumen, a.universo, pesos, modo="OOS", corrida=corrida, desde=CORTE_IS, hasta=FIN_OOS,
-                         funding_xbt=fx, log_cada=0).correr()
-            m = metricas(rr.serie); m["p95"] = p95_motor(rr.serie); m["por_año"] = por_año(rr.serie)
-            ops = rr.operaciones()
-            if len(ops):
-                m.update(lotes=len(ops), ganadoras=float((ops.pnl > 0).mean()), peor_lote=float(ops.pnl.min()),
-                         factor_beneficio=float(ops.pnl[ops.pnl > 0].sum() / max(-ops.pnl[ops.pnl < 0].sum(), 1e-9)),
-                         por_estrategia={k: float(v) for k, v in ops.groupby("estrategia").pnl.sum().items()})
-            m.update(funding=float(rr.serie.funding.iat[-1]),
-                     comisiones=float(rr.db.filas("SELECT COALESCE(SUM(comision),0) s FROM operaciones")[0]["s"]), pesos=pesos)
-            out["casos"][f"{nombre}_{corrida}"] = m
-            rr.serie.to_pickle(RES / f"oos_{nombre}_{corrida}.pkl")
-            print(f"{nombre:13s} {corrida}: tasa {m['cagr']:.1%}  caída {m['dd_pesimista']:.1%}  Calmar {m['calmar'] or 0:.2f}", flush=True)
+    trabajos = [(n, pw, c, a, desde, hasta, modo, not a.prueba) for n, pw in casos.items()
+                for c in (("A", "B") if n == "cartera" else ("B",))]
+    with ProcessPoolExecutor(a.procesos) as ex:
+        for clave, m in ex.map(_caso, trabajos):
+            out["casos"][clave] = m
+            print(f"{clave:15s}: tasa {m['cagr']:.1%}  caída {m['dd_pesimista']:.1%}  Calmar {m['calmar'] or 0:.2f}", flush=True)
     c, bt = out["casos"]["cartera_B"], out["casos"]["btc_tendencia_B"]
     out["criterios"] = dict(
         C1=dict(ok=c["cagr"] > 0, valor=c["cagr"]),
@@ -80,6 +105,9 @@ def main(a):
         C3=dict(ok=(c["calmar"] or -9) >= (bt["calmar"] or -9), cartera=c["calmar"], btc_tendencia=bt["calmar"]))
     out["aprobada"] = all(v["ok"] for v in out["criterios"].values())
     texto = json.dumps(out, indent=1, ensure_ascii=False, default=float)
+    if a.prueba:
+        print("\n(prueba sobre IS) Criterios:", {k: v["ok"] for k, v in out["criterios"].items()})
+        return
     (RES / "resultado_oos.json").write_text(texto)
     h = hashlib.sha256(texto.encode()).hexdigest()
     with open(RAIZ / "REGISTRO.md", "a") as f:
@@ -91,5 +119,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     for k in ("datos", "top50", "resumen", "universo"):
         ap.add_argument("--" + k, required=True)
-    ap.add_argument("--xbt", default=None)
+    ap.add_argument("--xbt", default=None); ap.add_argument("--procesos", type=int, default=2)
+    ap.add_argument("--prueba", action="store_true", help="ensayo sobre IS 2023 (no abre el OOS)")
+    ap.add_argument("--prueba_pesos", type=Path, default=None, help="json con el formato de pesos_congelados (para --prueba)")
     main(ap.parse_args())
