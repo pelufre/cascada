@@ -35,6 +35,10 @@ class Config:
     desactivadas: list = field(default_factory=list)   # estrategias apagadas (su peso no se reasigna)
     tope_nocional: float = 1.0
     tope_con_balas_real: bool = True       # el tope descuenta el nocional real de 30 balas (M7), como en la validación
+    # Variante «bloques» (rama fork-bloques): cada estrategia con peso fijo × patrimonio total, sin cascada; los
+    # miembros de un grupo comparten peso y no pueden estar en sentidos opuestos (uno no abre mientras otro tenga lotes)
+    modo_capital: str = "cascada"          # cascada | bloques
+    grupos: dict = field(default_factory=dict)        # p. ej. {"par_alts": ["ab_cortos", "mom_alts"]}
     alerta_caida: float = 0.20
     corte_caida: float = 0.30
     reajuste_fraccion: float = 0.10

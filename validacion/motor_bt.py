@@ -25,6 +25,7 @@ from . import datos as D
 H4 = pd.Timedelta(hours=4)
 COMISION = 0.0006
 DESLIZ = {"BTC": 0.0005, "ETH": 0.0005, "_": 0.0010}
+TOPE_BLOQUES = 3.0      # variante bloques: sólo el límite del exchange (apalancamiento 3), sin reparto entre estrategias
 PRIORIDAD = ["ab_cortos", "mom_alts", "balas5", "btc_tend", "rsi2_btc", "wr2", "sold_btc", "rsi2_eth", "hold_btc", "hold_eth"]
 
 
@@ -80,11 +81,12 @@ class Resultado:
 class Corrida:
     def __init__(self, paquete, top50, resumen, universo, pesos, modo="IS", corrida="A", capital=None, desde=None,
                  hasta=None, ruta_db=":memory:", funding_xbt=None, log_cada=500, registro=False, cargar=None, mercados=None,
-                 cfg=None, sin_costos=False, sin_funding=False):
+                 cfg=None, sin_costos=False, sin_funding=False, variante=None):
         """cargar(db) -> (bases, M, F) reemplaza al paquete (comparación con el papel); mercados: contratos a usar;
         cfg: configuración del servicio (alerta y corte incluidos) en lugar de la de validación."""
         self.cargar = cargar; self.mercados = mercados; self.cfg_fija = cfg
         self.sin_costos = sin_costos; self.sin_funding = sin_funding      # sólo para descomponer efectos (diagnóstico)
+        self.variante = variante      # "bloques": rama fork-bloques (sin cascada; cortos + momentum comparten filtro y peso)
         self.lim = D.limite(modo)
         self.desde = pd.Timestamp(desde or D.INICIO_IS)
         self.hasta = min(pd.Timestamp(hasta), self.lim) if hasta else self.lim
@@ -101,6 +103,9 @@ class Corrida:
                        corte_caida=9.0, alerta_caida=9.0, tope_con_balas_real=True,
                        comision=0.0 if self.sin_costos else COMISION)
         cfg.desactivadas = [k for k in PRIORIDAD if self.pesos.get(k, 0) <= 0]
+        if self.variante == "bloques":
+            cfg.modo_capital = "bloques"; cfg.tope_nocional = TOPE_BLOQUES
+            cfg.grupos = {"par_alts": ["ab_cortos", "mom_alts"]}
         return cfg
 
     def correr(self):
@@ -129,6 +134,9 @@ class Corrida:
                       balas_plano=lambda: not (balas and balas.st.get("activo")),
                       balas_nocional=lambda: (balas.st["ntn"] * balas.st["W"]) if balas and balas.st.get("activo") else 0.0)
         est = {k: v for k, v in todas().items() if self.pesos.get(k, 0) > 0}
+        if self.variante == "bloques" and "mom_alts" in est:
+            from cascada.estrategias import MomentumC40
+            est["mom_alts"] = MomentumC40(filtro="roc90")
         if self.pesos.get("btc_tend", 0) > 0:
             est["btc_tend"] = TendenciaBTC()
         for b in ("BTC", "ETH"):

@@ -210,8 +210,9 @@ class MomentumC40(Estrategia):
     tf = "1d"
     nombre = "mom_alts"
 
-    def __init__(self, slots=5, risk=0.02, k=3.0, hist_min=90, vol_min=2e6):
+    def __init__(self, slots=5, risk=0.02, k=3.0, hist_min=90, vol_min=2e6, filtro="sma140_roc84"):
         self.S = slots; self.risk = risk; self.k = k; self.hmin = hist_min; self.vol_min = vol_min
+        self.filtro = filtro      # "roc90": el filtro de tendencia de los cortos (ROC de BTC en 540 velas de 4 h > 0)
 
     def paso(self, t, datos, st, abiertos, universo, mercados):
         pos = st.setdefault("pos", {})            # simbolo -> dict(id, frac, dist)
@@ -227,7 +228,11 @@ class MomentumC40(Estrategia):
         if "BTC" not in D or len(D["BTC"]) < 141:
             return self._lotes(pos, abiertos)
         b = D["BTC"].c
-        btc_ok = b.iat[-1] > b.iloc[-140:].mean() and b.iat[-1] / b.iat[-85] - 1 > 0
+        if self.filtro == "roc90":
+            b4 = datos.v4("BTC", t, dias=100).c
+            btc_ok = len(b4) > 540 and b4.iat[-1] / b4.iat[-1 - 540] - 1 > 0
+        else:
+            btc_ok = b.iat[-1] > b.iloc[-140:].mean() and b.iat[-1] / b.iat[-85] - 1 > 0
         elig = [s for s in D if (s in universo or s in ("BTC", "ETH")) and len(D[s]) >= self.hmin]
         # liquidez: mediana del volumen diario de 30 días >= 2 M USD (volumen del perpetuo, como la validación)
         vol, ndias = datos.volumenes(t) if hasattr(datos, "volumenes") else ({}, 0)

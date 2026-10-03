@@ -410,6 +410,19 @@ class Motor:
                 deseos[nombre] = mantener(ab)
                 continue
             self.db.set(f"est_{nombre}", st)
+        # grupos (variante bloques): un miembro no abre lotes nuevos mientras otro miembro tenga lotes abiertos
+        for miembros in (cfg.grupos or {}).values():
+            con_lotes = [m for m in miembros if abiertos_por_est.get(m)]
+            nuevos = [m for m in miembros if any(L["id"] not in abiertos_por_est.get(m, {}) for L in deseos.get(m, []))]
+            if con_lotes:
+                bloqueados = [m for m in miembros if m not in con_lotes]
+            elif len(nuevos) > 1:          # los dos quieren entrar a la vez: entra el de mayor prioridad
+                bloqueados = sorted(nuevos, key=self._prio)[1:]
+            else:
+                bloqueados = []
+            for m in bloqueados:
+                ab = abiertos_por_est.get(m, {})
+                deseos[m] = [L for L in deseos.get(m, []) if L["id"] in ab]
         # nunca reabrir un lote ya cerrado (el id identifica una entrada)
         cerr = {r["id"] for r in self.db.filas("SELECT id FROM lotes WHERE cerrado_ts IS NOT NULL AND cerrado_ts > ?",
                                                 (_ms(t - pd.Timedelta(days=120)),))}
@@ -565,6 +578,8 @@ class Motor:
         deseos = self._deseos(t, lib, universo)
         w_bal = cfg.pesos.get("balas5", 0.0)
         presupuesto = cfg.tope_nocional * E - self._reserva_balas(E)
+        if getattr(cfg, "modo_capital", "cascada") == "bloques":
+            presupuesto = float("inf")      # sin cascada: cada estrategia recibe su peso × patrimonio; sólo rige el tope
         prio = [p for p in cfg.prioridad if p != "balas5"]
         objetivos, resumen = asignar(E, presupuesto, cfg.pesos, prio, deseos, lib, precios, self.mercados)
         for est, r in resumen.items():

@@ -18,7 +18,7 @@ Modelo, vela k (decisión en k − 1, posición durante la vela k):
 import numpy as np
 import pandas as pd
 
-FIJAS = {"ab_cortos", "mom_alts", "sold_btc"}
+FIJAS = {"ab_cortos", "mom_alts", "sold_btc", "par_alts"}     # par_alts: cortos + momentum en un bloque (rama fork-bloques)
 TOPE = 1.0
 HOLGURA = 1.05
 
@@ -65,13 +65,14 @@ class Estrategia:
 
 
 class Cartera:
-    def __init__(self, series, lotes, nombres):
+    def __init__(self, series, lotes, nombres, cascada=True, tope=TOPE):
         """series/lotes: dict estrategia -> DataFrame de la corrida sola (lotes sólo para las fijas). nombres en orden de
         prioridad (el de la búsqueda); balas5 se procesa primero como en el motor."""
         idx = None
         for k in nombres:
             idx = series[k].index if idx is None else idx.intersection(series[k].index)
         self.idx = idx
+        self.cascada = cascada; self.tope = tope        # cascada=False: cada bloque recibe su peso entero (g = 1)
         self.nombres = list(nombres)
         self.est = [Estrategia(k, series[k], lotes.get(k), idx) for k in nombres]
         d = idx.floor("D").values
@@ -95,7 +96,7 @@ class Cartera:
                     Kb = W[:, j] * Ep / e.Es0[k]
                 reserva = Kb * e.noc[k - 1] if k > 0 else np.zeros(n)
                 pnl += Kb * e.dP[k]; pnlp += Kb * e.dPp[k]
-            restante = TOPE * Ep - reserva
+            restante = self.tope * Ep - reserva if self.cascada else np.full(n, np.inf)
             usado = []                            # (j, e, nocional (n,), [lotes nuevos/reesc]) para el tope
             g_re = {}
             for j, e in otros:
@@ -125,7 +126,7 @@ class Cartera:
                 usado.append((j, e, fijo + g * flex))
             # tope: recorta desde la última prioridad
             total = sum(u[2] for u in usado)
-            exceso = total - HOLGURA * (TOPE * Ep - reserva)
+            exceso = total - HOLGURA * (self.tope * Ep - reserva)
             if np.any(exceso > 1e-12):
                 exceso = np.maximum(exceso, 0.0)
                 for j, e, noc in reversed(usado):
@@ -154,7 +155,7 @@ class Cartera:
         return ret, retp
 
 
-def cargar(rutas_series, rutas_lotes, nombres):
+def cargar(rutas_series, rutas_lotes, nombres, cascada=True, tope=TOPE):
     S = {k: pd.read_pickle(rutas_series[k]) for k in nombres}
     L = {k: pd.read_pickle(rutas_lotes[k]) for k in nombres if k in FIJAS}
-    return Cartera(S, L, nombres)
+    return Cartera(S, L, nombres, cascada=cascada, tope=tope)
