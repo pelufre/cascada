@@ -15,3 +15,6 @@
 | 2026-10-02 | Verificación §5.4 con el motor completo (A y B): los cuatro niveles cumplen con factor 1 (B: 16,5/37,4/50,6/68,6 % anual IS; p95 9,4/19,2/24,2/29,6 %) | este commit |
 | 2026-10-02 | Nivel elegido por el usuario: 30 %. Pesos congelados (pesos_congelados.json sha256 5da5dcd4398b996a…) | este commit |
 | 2026-10-02 | Evaluación OOS (pesos 54ddf76): APROBADA | resultado_oos.json sha256 5066df9d90a0bc42 |
+| 2026-10-02 | Evaluación OOS informativa nivel 10 (pesos 54ddf76): APROBADA | resultado_oos_nivel10.json sha256 6ab39ebff3cdb0f4 |
+| 2026-10-02 | Evaluación OOS informativa nivel 20 (pesos 54ddf76): APROBADA | resultado_oos_nivel20.json sha256 ba8909ca3e75d3dd |
+| 2026-10-02 | Evaluación OOS informativa nivel 25 (pesos 54ddf76): APROBADA | resultado_oos_nivel25.json sha256 8d57b488748d42e4 |
