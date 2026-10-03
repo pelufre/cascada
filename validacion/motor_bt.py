@@ -80,10 +80,11 @@ class Resultado:
 class Corrida:
     def __init__(self, paquete, top50, resumen, universo, pesos, modo="IS", corrida="A", capital=None, desde=None,
                  hasta=None, ruta_db=":memory:", funding_xbt=None, log_cada=500, registro=False, cargar=None, mercados=None,
-                 cfg=None):
+                 cfg=None, sin_costos=False, sin_funding=False):
         """cargar(db) -> (bases, M, F) reemplaza al paquete (comparación con el papel); mercados: contratos a usar;
         cfg: configuración del servicio (alerta y corte incluidos) en lugar de la de validación."""
         self.cargar = cargar; self.mercados = mercados; self.cfg_fija = cfg
+        self.sin_costos = sin_costos; self.sin_funding = sin_funding      # sólo para descomponer efectos (diagnóstico)
         self.lim = D.limite(modo)
         self.desde = pd.Timestamp(desde or D.INICIO_IS)
         self.hasta = min(pd.Timestamp(hasta), self.lim) if hasta else self.lim
@@ -97,7 +98,8 @@ class Corrida:
         if self.cfg_fija is not None:
             return self.cfg_fija
         cfg = C.Config(pesos=dict(self.pesos), prioridad=list(PRIORIDAD), capital_papel=self.capital,
-                       corte_caida=9.0, alerta_caida=9.0, tope_con_balas_real=True, comision=COMISION)
+                       corte_caida=9.0, alerta_caida=9.0, tope_con_balas_real=True,
+                       comision=0.0 if self.sin_costos else COMISION)
         cfg.desactivadas = [k for k in PRIORIDAD if self.pesos.get(k, 0) <= 0]
         return cfg
 
@@ -113,11 +115,14 @@ class Corrida:
             bases, M = D.cargar_base(db, self.paquete, *self.archivos, hasta=self.hasta)
             F = self.paquete.funding(self.hasta)
         merc = self.mercados or mercados_de(self.corrida, bases, self.paquete.contratos())
+        if self.sin_funding:
+            F = None; self.funding_xbt = None
         pub = PublicoBT(M, merc)
         cfg = self._cfg()
         datos = Datos(db, pub)
         w_bal = self.pesos.get("balas5", 0.0)
-        papel = Papel(db, merc, capital=self.capital * (1 - w_bal), comision=COMISION, desliz=DESLIZ)
+        papel = Papel(db, merc, capital=self.capital * (1 - w_bal), comision=0.0 if self.sin_costos else COMISION,
+                      desliz=0.0 if self.sin_costos else DESLIZ)
         balas = Balas(db, self.capital * w_bal) if w_bal > 0 else None
         motor = Motor(cfg, db, datos, papel, pub,
                       balas_patrimonio=lambda: balas.patrimonio() if balas else 0.0,
@@ -163,7 +168,7 @@ class Corrida:
                                 for L in ls:
                                     fund_lote[L["id"]] = fund_lote.get(L["id"], 0.0) + pago * abs(L["contratos"]) / tot if tot else 0.0
             # patrimonio al cierre y peor punto de la vela con las posiciones que hubo durante la vela
-            E_main = E_peor_main = papel.st["caja"]
+            E_main = E_peor_main = E_mejor_main = papel.st["caja"]
             c_sym, peor_sym = {}, {}
             for b, p in papel.st["pos"].items():
                 tam = merc[b]["tam"]
@@ -171,6 +176,7 @@ class Corrida:
                 c = float(cu) if cu is not None and cu == cu else p["px"]
                 tiene = rc is not None and rc.get(b) == rc.get(b) and rl.get(b) == rl.get(b)
                 peor = (float(rl.get(b)) if p["c"] > 0 else float(rh.get(b))) if tiene else c
+                mejor = (float(rh.get(b)) if p["c"] > 0 else float(rl.get(b))) if tiene else c
                 topes = [s["px"] for s in papel.st["stops"].values() if s.get("estado", "abierta") == "abierta" and s["base"] == b]
                 cubierto = sum(s["c"] for s in papel.st["stops"].values() if s.get("estado", "abierta") == "abierta" and s["base"] == b)
                 if topes and cubierto >= abs(p["c"]) - 1e-9:
@@ -178,12 +184,14 @@ class Corrida:
                 c_sym[b], peor_sym[b] = c, peor
                 E_main += p["c"] * tam * (c - p["px"])
                 E_peor_main += p["c"] * tam * (peor - p["px"])
-            E_bal = E_peor_bal = 0.0
+                E_mejor_main += p["c"] * tam * (mejor - p["px"])
+            E_bal = E_peor_bal = E_mejor_bal = 0.0
             if balas:
                 if rc is not None and rc.get("BTC") == rc.get("BTC"):
                     E_bal = balas.patrimonio(float(rc["BTC"])); E_peor_bal = balas.patrimonio(float(rl["BTC"]))
+                    E_mejor_bal = balas.patrimonio(float(rh["BTC"]))
                 else:
-                    E_bal = E_peor_bal = balas.patrimonio()
+                    E_bal = E_peor_bal = E_mejor_bal = balas.patrimonio()
             E = E_main + E_bal
             if self.registro:
                 ahora = set()
@@ -207,7 +215,7 @@ class Corrida:
                 noc[L["estrategia"]] = noc.get(L["estrategia"], 0.0) + abs(L["contratos"]) * L["tam_contrato"] * px
             if balas and balas.st.get("activo") and rc is not None:
                 noc["balas5"] = balas.st["ntn"] * balas.st["W"]
-            filas.append(dict(t=t, E=E, E_peor=E_peor_main + E_peor_bal, E_main=E_main, E_bal=E_bal, funding=pagado,
+            filas.append(dict(t=t, E=E, E_peor=E_peor_main + E_peor_bal, E_mejor=max(E_mejor_main + E_mejor_bal, E), E_main=E_main, E_bal=E_bal, funding=pagado,
                               **{f"n_{a}": v for a, v in noc.items()}))
             # 30 balas: capital asignado al empezar cada campaña (mientras está afuera sigue el peso sobre el total)
             if balas:
@@ -243,7 +251,12 @@ class Corrida:
 
 
 def metricas(serie, desde=None, hasta=None):
-    """Tasa anual, caída (rango optimista/pesimista), Sharpe y Calmar de una serie de 4 h."""
+    """Tasa anual, caída, Sharpe y Calmar de una serie de 4 h. La caída se informa en tres medidas:
+      optimista: sólo cierres de 4 h (máximo de cierres → cierre más bajo);
+      pesimista: peor punto de cada vela contra el máximo de los cierres anteriores;
+      estricta:  peor punto de cada vela contra el máximo de los MEJORES puntos de las velas anteriores y de la misma
+                 vela (se supone que dentro de la vela el máximo vino antes que el mínimo: el orden más desfavorable).
+    Con velas de 4 h el orden real dentro de la vela no se conoce: la caída verdadera está entre optimista y estricta."""
     s = serie
     if desde is not None:
         s = s[s.index >= pd.Timestamp(desde)]
@@ -255,7 +268,11 @@ def metricas(serie, desde=None, hasta=None):
     pico = E.cummax()
     dd_opt = float((E / pico - 1).min())
     dd_pes = float((Ep / pico.shift().fillna(E.iat[0]) - 1).clip(upper=0).min())
+    dd_est = None
+    if "E_mejor" in s:
+        pico_m = np.maximum(s.E_mejor.cummax(), pico)
+        dd_est = float(min((Ep / pico_m - 1).clip(upper=0).min(), dd_pes, dd_opt))
     rd = E.resample("D").last().pct_change().dropna()
     sharpe = float(rd.mean() / rd.std() * np.sqrt(365)) if rd.std() > 0 else 0.0
-    return dict(cagr=float(cagr), dd_optimista=dd_opt, dd_pesimista=min(dd_pes, dd_opt), sharpe=sharpe,
+    return dict(cagr=float(cagr), dd_optimista=dd_opt, dd_pesimista=min(dd_pes, dd_opt), dd_estricta=dd_est, sharpe=sharpe,
                 calmar=float(cagr / abs(min(dd_pes, dd_opt))) if dd_pes < 0 else None)

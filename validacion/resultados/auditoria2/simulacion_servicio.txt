@@ -1,0 +1,14 @@
+Servicio: 180 ciclos en 153 s · conciliación True · libro = exchange: True
+Incidencias: [{'nivel': 'baja', 'tipo': 'universo_sin_mercado', 'n': 3}, {'nivel': 'baja', 'tipo': 'volumen_faltante', 'n': 2}]
+{
+ "desde": "2026-09-01 00:00:00",
+ "hasta": "2026-10-01 00:00:00",
+ "operaciones_servicio": 44,
+ "operaciones_motor": 44,
+ "eventos": 44,
+ "diferencias": 0,
+ "patrimonio_servicio": 3108.0779022372876,
+ "patrimonio_motor": 3108.4824200354306,
+ "dif_patrimonio_max": 0.0006119714502043072,
+ "dif_patrimonio_media": 8.598825332146547e-05
+}

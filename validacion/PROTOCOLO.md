@@ -187,3 +187,19 @@ La siguiente es de **2026-10-02, sólo con IS y antes de abrir el OOS**:
   misma BTC tendencia) para poder ofrecerlos como perfiles de riesgo separados. **No cambian la decisión:** el nivel
   operado sigue siendo el 30 %, elegido antes de abrir el OOS; elegir otro nivel a partir de estos resultados violaría
   §8. Archivos `resultados/resultado_oos_nivel{10,20,25}.json`.
+
+Las siguientes son de **2026-10-03, después de abrir el período de prueba**, a raíz de la revisión de la 1.2. Ninguna
+cambia pesos, niveles, reglas ni la decisión de 30 balas (§8).
+
+- **E12 · Tramos de liquidación de 30 balas (corrige una discrepancia entre §4 y el código).** §4 dice «liquidación
+  con los tramos de riesgo de KuCoin»; el código usaba un margen de mantenimiento fijo de 0,7 %, que es el del tramo 1 de
+  XBTUSDM (posiciones de hasta 5 BTC). En la corrida B (3000 USDT), la de los criterios, la posición de balas no pasó de
+  0,55 BTC en 2020 → sep 2026: el tramo 1 era el correcto y los resultados no cambian (se volvió a correr el nivel 30 en
+  la prueba con los tramos: mismas cifras). En la corrida A (100 000 USDT), la de la búsqueda de pesos, llegó a 51 BTC:
+  esa corrida representa la estrategia sin límite de tamaño (todo es proporcional al capital). Desde esta fecha el
+  servicio aplica los tramos reales (`cascada/balas.py`, `mmr_xbtusdm`). Capacidad: el tramo 1 alcanza hasta ~25 000 USDT
+  de patrimonio total en el nivel 30.
+- **E13 · Caída estricta (precisa §4, «la caída se informa como rango»).** La medida pesimista tomaba el peor punto de
+  cada vela contra el máximo de los cierres anteriores. Se agrega una tercera, estricta: pico en el mejor punto de cada
+  vela (incluida la misma vela, suponiendo que el máximo vino antes que el mínimo). Es una medida de informe; los
+  criterios se vuelven a mirar con ella en `AUDITORIA2.md` y los cuatro niveles siguen cumpliendo C2.

@@ -1,0 +1,1 @@
+nivel 30 prueba con tramos: {'cagr': 0.28726, 'dd_optimista': -0.131113, 'dd_pesimista': -0.140075, 'dd_estricta': -0.148718, 'sharpe': 1.346557, 'calmar': 2.050764}

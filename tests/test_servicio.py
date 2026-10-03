@@ -259,9 +259,21 @@ def r10_servicio_usa_la_config_validada():
     assert s.bolsa.desliz == {"BTC": 0.0005, "ETH": 0.0005, "_": 0.0010}, s.bolsa.desliz
 
 
+def r11_tramos_de_liquidacion_xbtusdm():
+    """30 balas usa los tramos de riesgo de KuCoin: 0,7 % hasta 5 BTC (lo validado con 3000 USDT) y más margen arriba."""
+    from cascada.balas import Balas, mmr_xbtusdm
+    assert [mmr_xbtusdm(x) for x in (0.55, 5, 5.01, 30, 51, 200)] == [0.007, 0.007, 0.01, 0.025, 0.05, 0.5]
+    b = Balas(Base(":memory:"), 3000.0)
+    b.st.update(activo=True, ntn=1.0, mbtc=0.9 / 60000, inv=0.0, ultimo_precio=60000.0)    # 3000 USD = 0,05 BTC
+    assert abs(b._liq() - 1.0 * 1.007 / (0.9 / 60000)) < 1e-6
+    b.st["W"] = 600_000.0                                                                      # 600 000 USD = 10 BTC
+    assert abs(b._liq() - 1.0 * 1.01 / (0.9 / 60000)) < 1e-6
+
+
 PRUEBAS = [r01_red_cae_despues_de_llenar, r02_red_cae_antes_de_llegar, r03_reinicio_a_mitad_de_ciclo,
            r04_reinicio_sin_cambios_no_opera, r05_vela_faltante, r06_precio_faltante, r07_volumen_del_perpetuo,
-           r08_capital_de_balas_por_campaña, r09_funding_en_papel, r10_servicio_usa_la_config_validada]
+           r08_capital_de_balas_por_campaña, r09_funding_en_papel, r10_servicio_usa_la_config_validada,
+           r11_tramos_de_liquidacion_xbtusdm]
 
 
 def main():

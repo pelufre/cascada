@@ -18,6 +18,16 @@ from .indicadores import rsi_wilder
 
 P = dict(lev=5.0, bullets=30, init=1, ACT=0.5, RES=0.5, PREF=0.25, RESTRIG=0.12, MMR=0.007, FEE=0.0006, SLIP=0.0005,
          rsi_th=15.0, ma_len=40)
+# Tramos de riesgo de KuCoin para XBTUSDM (proyecto: niveles_riesgo_XBTUSDM.csv): (tope de la posición en BTC, margen de
+# mantenimiento). Hasta 5 BTC rige el 0,7 % de P["MMR"]: con 3000 USDT en el nivel 30 la posición no pasa de ~0,55 BTC.
+TRAMOS_XBTUSDM = [(5, 0.007), (20, 0.01), (40, 0.025), (60, 0.05), (70, 0.1), (80, 0.125), (90, 0.25), (100, 0.5)]
+
+
+def mmr_xbtusdm(posicion_btc):
+    for tope, m in TRAMOS_XBTUSDM:
+        if posicion_btc <= tope:
+            return m
+    return TRAMOS_XBTUSDM[-1][1]
 
 
 class Balas:
@@ -41,7 +51,11 @@ class Balas:
 
     def _liq(self):
         s = self.st
-        return s["ntn"] * (1 + P["MMR"]) / (s["mbtc"] + s["inv"]) if s["activo"] and (s["mbtc"] + s["inv"]) > 0 else None
+        if not (s["activo"] and (s["mbtc"] + s["inv"]) > 0):
+            return None
+        px = s.get("ultimo_precio")
+        mmr = mmr_xbtusdm(s["ntn"] * s["W"] / px) if px else P["MMR"]       # tramo según el tamaño en BTC
+        return s["ntn"] * (1 + mmr) / (s["mbtc"] + s["inv"])
 
     def _op(self, t, tipo, precio, nocional_usd, motivo):
         self.db.ejec("INSERT INTO operaciones (ts,cuenta,estrategia,lote,simbolo,lado,contratos,precio,nocional,comision,motivo,modo)"
