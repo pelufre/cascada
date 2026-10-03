@@ -9,6 +9,7 @@ import pandas as pd
 from .config import RAIZ
 
 BT_DIR = RAIZ / "datos_backtest"
+INICIO_PRUEBA = "2024-01-01"     # la banda esperada usa sólo el período de prueba de la validación (no el de ajuste)
 
 
 def _ms(t):
@@ -142,7 +143,7 @@ def banda_esperada(cfg, dias):
     f = BT_DIR / "cascada_niveles.csv"
     if not f.exists() or dias < 1:
         return None
-    eq = pd.read_csv(f, index_col=0, parse_dates=True)[cfg.nivel]
+    eq = pd.read_csv(f, index_col=0, parse_dates=True)[cfg.nivel].loc[INICIO_PRUEBA:]
     n = int(round(dias))
     if n >= len(eq) - 30:
         return None
@@ -161,7 +162,7 @@ def comparacion_vivo(db, cfg):
     f = BT_DIR / "cascada_niveles.csv"
     if cuota.empty or not f.exists():
         return {}
-    eq = pd.read_csv(f, index_col=0, parse_dates=True)[cfg.nivel]
+    eq = pd.read_csv(f, index_col=0, parse_dates=True)[cfg.nivel].loc[INICIO_PRUEBA:]
     viv = cuota.resample("D").last().dropna()
     n = len(viv)
     r = eq.pct_change().dropna().values

@@ -141,6 +141,8 @@ class VolumenPerp:
         self.ku = publico_kucoin
         self._bn = binance
         self._ids = None
+        self.fuente = {}          # base -> "binance" | "kucoin" (la última vez que se leyó)
+        self.error_binance = None
 
     def _binance(self):
         if self._bn is None:
@@ -162,9 +164,10 @@ class VolumenPerp:
                     filas = bn.fapiPublicGetKlines({"symbol": i, "interval": "1d", "limit": dias + 1})
                     hoy = pd.Timestamp.now("UTC").tz_localize(None).normalize()
                     s = pd.Series({pd.to_datetime(int(f[0]), unit="ms"): float(f[7]) for f in filas})
+                    self.fuente[base] = "binance"
                     return s[s.index < hoy]
-        except Exception:
-            pass
+        except Exception as e:
+            self.error_binance = repr(e)[:200]
         try:
             m = self.ku.mercados().get(base)
             if not m:
@@ -173,6 +176,7 @@ class VolumenPerp:
             d = self.ku.velas(base, "1d", hoy_ms - (dias + 1) * 86400_000, hoy_ms)
             if d.empty:
                 return None
+            self.fuente[base] = "kucoin"
             return (d.v * m["tam"] * d.c).rename(None)
         except Exception:
             return None

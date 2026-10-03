@@ -3,6 +3,7 @@
   verificar            prueba KuCoin (público y privado), CoinMarketCap y Telegram, y muestra tamaños de contrato
   estado               resumen como el de /estado
   aporte MONTO [nota]  registra un depósito (+) o retiro (−) para que no cuente como ganancia o caída
+  volumen [BASE …]     volumen diario del perpetuo que usa el filtro de liquidez de c40 (y de qué fuente sale)
   reiniciar-papel      borra la base (sólo modo papel) para empezar de cero
   balas-prueba [USDT]  prueba la ejecución real de 30 balas en la subcuenta con montos mínimos (12 USDT por defecto)
   x-prueba             comprueba las credenciales de X y publica un post de prueba
@@ -212,6 +213,18 @@ def main(argv=None):
         if mx is not None:
             db.set("maximo_patrimonio", mx + monto)
         print(f"Registrado {'aporte' if monto > 0 else 'retiro'} de {abs(monto):.2f} USDT")
+    elif cmd == "volumen":
+        from .bolsa import Publico
+        from .datos import VolumenPerp
+        v = VolumenPerp(Publico())
+        for b in (a[1:] or ["BTC", "ETH", "SOL", "PEPE", "HYPE"]):
+            d = v.diario(b)
+            if d is None or d.empty:
+                print(f"{b:6s} sin volumen")
+            else:
+                print(f"{b:6s} {v.fuente.get(b):8s} mediana 30 d {d.tail(30).median() / 1e6:,.1f} M USDT · último día {d.index[-1]:%Y-%m-%d}")
+        if v.error_binance:
+            print("Binance falló:", v.error_binance)
     elif cmd == "reiniciar-papel":
         cfg = C.cargar()
         if cfg.modo != "papel":

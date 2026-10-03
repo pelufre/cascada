@@ -118,7 +118,7 @@ async function operaciones(){
 }
 async function backtest(){
  const c=await j('/api/comparacion');const C=c.comparacion||{};const b=c.banda;
- $('bandaTxt').innerHTML=b?`Para ${b.dias} días, el backtest de ${c.nivel} dio entre ${sp(b.rend.p5)} y ${sp(b.rend.p95)} (mediana ${sp(b.rend.p50)}), con caída máxima típica ${pc(b.caida.p50)} y 5 % de los casos peor que ${pc(b.caida.p5)}. La curva en vivo debería moverse dentro de la banda.`:'Hace falta más historia en vivo para comparar.';
+ $('bandaTxt').innerHTML=b?`Para ${b.dias} días, el backtest de ${c.nivel} en el período de prueba (2024 → sep 2026) dio entre ${sp(b.rend.p5)} y ${sp(b.rend.p95)} (mediana ${sp(b.rend.p50)}), con caída máxima típica ${pc(b.caida.p50)} y 5 % de los casos peor que ${pc(b.caida.p5)}. La curva en vivo debería moverse dentro de la banda.`:'Hace falta más historia en vivo para comparar.';
  if(C.vivo){const ds=[linea('En vivo',C.vivo,COL[0],{borderWidth:2.2})];if(C.p50)ds.push(linea('Backtest mediana',C.p50,'#64748b',{borderDash:[4,4]}),linea('Backtest 95 %',C.p95,'#94a3b8',{borderWidth:1}),linea('Backtest 5 %',C.p5,'#94a3b8',{borderWidth:1,fill:'-1',backgroundColor:'rgba(148,163,184,.15)'}));
   chart('cCmp',{type:'line',data:{labels:C.fechas,datasets:ds},options:{interaction:{mode:'index',intersect:false}}});}
  if(btCargado)return;const d=await j('/api/backtest');if(!d.fechas)return;btCargado=true;
