@@ -78,11 +78,12 @@ def main(a):
         commit = subprocess.run(["git", "log", "-1", "--format=%H", "--", str(CONGELADO)], cwd=RAIZ, capture_output=True,
                                 text=True).stdout.strip()
         desde, hasta, modo = CORTE_IS, FIN_OOS, "OOS"
-    nivel = cong["nivel_elegido"]; L = int(nivel) / 100
+    nivel = a.nivel or cong["nivel_elegido"]; L = int(nivel) / 100
+    informativo = nivel != cong["nivel_elegido"]       # E11: otro nivel congelado, no cambia la decisión
     w = cong["pesos_por_nivel"][nivel]
     var = cong["variante_balas"]
     p95_is = cong["verificacion_motor"][nivel]["resultados"]["B"]["p95"]      # §7 C2: motor completo, corrida B, IS
-    casos = {
+    casos = {"cartera": w} if informativo else {
         "cartera": w,
         "btc_mantener": {"hold_btc": 1.0}, "eth_mantener": {"hold_eth": 1.0}, "btc_tendencia": {"btc_tend": 1.0},
         "igual_riesgo": igual_riesgo(w, L),
@@ -92,13 +93,16 @@ def main(a):
     out = dict(protocolo_commit_pesos=commit, nivel=nivel, variante=var, p95_is_B=p95_is,
                tramo=f"{desde.date()} → {hasta.date()} (excl.)",
                ejecutado=time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()), casos={})
-    trabajos = [(n, pw, c, a, desde, hasta, modo, not a.prueba) for n, pw in casos.items()
+    sufijo = f"_nivel{nivel}" if informativo else ""
+    trabajos = [(n + sufijo, pw, c, a, desde, hasta, modo, not a.prueba) for n, pw in casos.items()
                 for c in (("A", "B") if n == "cartera" else ("B",))]
     with ProcessPoolExecutor(a.procesos) as ex:
         for clave, m in ex.map(_caso, trabajos):
             out["casos"][clave] = m
             print(f"{clave:15s}: tasa {m['cagr']:.1%}  caída {m['dd_pesimista']:.1%}  Calmar {m['calmar'] or 0:.2f}", flush=True)
-    c, bt = out["casos"]["cartera_B"], out["casos"]["btc_tendencia_B"]
+    c = out["casos"][f"cartera{sufijo}_B"]
+    bt = out["casos"]["btc_tendencia_B"] if not informativo else \
+        json.loads((RES / "resultado_oos.json").read_text())["casos"]["btc_tendencia_B"]
     out["criterios"] = dict(
         C1=dict(ok=c["cagr"] > 0, valor=c["cagr"]),
         C2=dict(ok=-c["dd_pesimista"] <= p95_is, valor=c["dd_pesimista"], limite=-p95_is),
@@ -108,10 +112,11 @@ def main(a):
     if a.prueba:
         print("\n(prueba sobre IS) Criterios:", {k: v["ok"] for k, v in out["criterios"].items()})
         return
-    (RES / "resultado_oos.json").write_text(texto)
+    salida = RES / (f"resultado_oos_nivel{nivel}.json" if informativo else "resultado_oos.json")
+    salida.write_text(texto)
     h = hashlib.sha256(texto.encode()).hexdigest()
     with open(RAIZ / "REGISTRO.md", "a") as f:
-        f.write(f"| {time.strftime('%Y-%m-%d')} | Evaluación OOS (pesos {commit[:7]}): {'APROBADA' if out['aprobada'] else 'NO aprobada'} | resultado_oos.json sha256 {h[:16]} |\n")
+        f.write(f"| {time.strftime('%Y-%m-%d')} | Evaluación OOS{' informativa' if informativo else ''} nivel {nivel} (pesos {commit[:7]}): {'APROBADA' if out['aprobada'] else 'NO aprobada'} | {salida.name} sha256 {h[:16]} |\n")
     print("\nCriterios:", {k: v["ok"] for k, v in out["criterios"].items()}, "→", "APROBADA" if out["aprobada"] else "NO APROBADA")
 
 
@@ -120,6 +125,7 @@ if __name__ == "__main__":
     for k in ("datos", "top50", "resumen", "universo"):
         ap.add_argument("--" + k, required=True)
     ap.add_argument("--xbt", default=None); ap.add_argument("--procesos", type=int, default=2)
+    ap.add_argument("--nivel", default=None, help="E11: evaluar otro nivel congelado (informativo, no cambia la decisión)")
     ap.add_argument("--prueba", action="store_true", help="ensayo sobre IS 2023 (no abre el OOS)")
     ap.add_argument("--prueba_pesos", type=Path, default=None, help="json con el formato de pesos_congelados (para --prueba)")
     main(ap.parse_args())

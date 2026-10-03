@@ -180,3 +180,10 @@ La siguiente es de **2026-10-02, sólo con IS y antes de abrir el OOS**:
   2020–2023). Pesos congelados en `validacion/pesos_congelados.json` (variante 30 balas; p95 IS motor completo B 29,6 %).
   `evaluar_oos.py` se corrigió antes de congelar (C2 toma el p95 del motor completo B del archivo congelado; la
   comparación «igual riesgo» se escala con la cartera por lotes) y se ensayó sobre IS 2023 con `--prueba`.
+
+- **E11 · Evaluación informativa de los otros niveles (2026-10-02, después de abrir el OOS del nivel 30 %).** Los
+  pesos de los niveles 10, 20 y 25 % quedaron congelados en el mismo commit que el 30 % (54ddf76), antes de abrir el
+  OOS. Se evalúan en el OOS con el mismo motor y los mismos criterios (C2 con el p95 IS de cada nivel; C3 contra la
+  misma BTC tendencia) para poder ofrecerlos como perfiles de riesgo separados. **No cambian la decisión:** el nivel
+  operado sigue siendo el 30 %, elegido antes de abrir el OOS; elegir otro nivel a partir de estos resultados violaría
+  §8. Archivos `resultados/resultado_oos_nivel{10,20,25}.json`.
