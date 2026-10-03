@@ -143,11 +143,56 @@ def verificar(a):
                                                                     indent=1, ensure_ascii=False, default=float))
 
 
+def _prueba(args):
+    nivel, w, a = args
+    from .datos import FIN_OOS
+    p = Paquete(a.datos)
+    r = Corrida(p, a.top50, a.resumen, a.universo, w, modo="OOS", corrida="B", desde=CORTE_IS, hasta=FIN_OOS,
+                funding_xbt=funding_xbt(a.xbt, p, FIN_OOS), log_cada=0, variante="bloques").correr()
+    r.serie.to_pickle(RES / f"prueba_B_nivel{nivel}.pkl")
+    m = metricas(r.serie)
+    e = r.serie.E.resample("YE").last()
+    e0 = np.r_[r.serie.E.iat[0], e.values[:-1]]
+    m["por_año"] = {str(i.year): float(v / v0 - 1) for i, v, v0 in zip(e.index, e.values, e0)}
+    ops = r.operaciones()
+    m.update(lotes=len(ops), funding=float(r.serie.funding.iat[-1]),
+             comisiones=float(r.db.filas("SELECT COALESCE(SUM(comision),0) s FROM operaciones")[0]["s"]),
+             por_estrategia={k: float(v) for k, v in ops.groupby("estrategia").pnl.sum().items()} if len(ops) else {})
+    par = ops[ops.estrategia.isin(["ab_cortos", "mom_alts"])] if len(ops) else ops
+    if len(par):
+        L = par.assign(fin=par.cerrado_ts.fillna(par.abierto_ts.max() + 1))
+        cortos, largos = L[L.lado < 0], L[L.lado > 0]
+        m["solapes_cortos_largos"] = int(sum(((largos.abierto_ts < c.fin) & (largos.fin > c.abierto_ts)).sum()
+                                             for c in cortos.itertuples()))
+    return nivel, m
+
+
+def prueba(a):
+    """Informativo (pedido del usuario, 2026-10-03): los pesos del fork, elegidos sólo con 2020–2023, en 2024 → sep 2026.
+    El período ya se había visto para la cascada validada: no es una prueba limpia del fork y no sirve para elegirlo."""
+    from .datos import limite
+    limite("OOS")
+    oos = json.loads((RES.parent / "resultado_oos.json").read_text())
+    calmar_btc = oos["casos"]["btc_tendencia_B"]["calmar"]
+    trabajos = [(n, json.loads((RES / f"verificacion_{n}.json").read_text())["pesos"], a) for n in a.niveles.split(",")]
+    out = {}
+    with ProcessPoolExecutor(a.procesos) as ex:
+        for n, m in ex.map(_prueba, trabajos):
+            p95 = json.loads((RES / f"verificacion_{n}.json").read_text())["B"]["p95"]
+            m["criterios"] = dict(C1=m["cagr"] > 0, C2=-m["dd_pesimista"] <= p95, C3=(m["calmar"] or -9) >= calmar_btc,
+                                  p95_is=p95, calmar_btc_tendencia=calmar_btc)
+            out[n] = m
+            print(f"nivel {n}: tasa {m['cagr']:.1%}  caída pesimista {m['dd_pesimista']:.1%}  estricta {m['dd_estricta']:.1%}  "
+                  f"Calmar {m['calmar'] or 0:.2f}  años {[f'{v:.0%}' for v in m['por_año'].values()]}  criterios {m['criterios']}",
+                  flush=True)
+    (RES / "prueba_2024_2026.json").write_text(json.dumps(out, indent=1, ensure_ascii=False, default=float))
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("paso", choices=["solos", "elegir", "verificar"])
+    ap.add_argument("paso", choices=["solos", "elegir", "verificar", "prueba"])
     for k in ("datos", "top50", "resumen", "universo", "xbt"):
         ap.add_argument("--" + k)
     ap.add_argument("--procesos", type=int, default=2); ap.add_argument("--niveles", default="10,20,25,30")
     a = ap.parse_args()
-    {"solos": solos, "elegir": elegir, "verificar": verificar}[a.paso](a)
+    {"solos": solos, "elegir": elegir, "verificar": verificar, "prueba": prueba}[a.paso](a)
