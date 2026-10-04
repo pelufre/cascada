@@ -53,7 +53,7 @@ def spot_mantener(paquete_dir, base, desde, hasta, comision=0.001):
 
 def resumir(cong, a=None):
     viejo_oos = json.loads((RES / "resultado_oos.json").read_text())
-    out = dict(pesos_commit="54ddf76", motor="1.3 (correcciones de la segunda auditoría, enmienda E14)", niveles={})
+    out = dict(pesos_commit="54ddf76", motor="1.3.1 (correcciones de la segunda auditoría, E14, y entrada salteada de momentum alts, E15)", niveles={})
     bt = _j("btc_tendencia_OOS_B")
     for n in NIVELES:
         isB, ooB = _j(f"n{n}_IS_B"), _j(f"n{n}_OOS_B")

@@ -1,9 +1,9 @@
-"""Series del tablero web (datos_backtest/) con el motor 1.3 (E14) y los pesos congelados.
+"""Series del tablero web (datos_backtest/) con el motor 1.3.1 (E14 y E15) y los pesos congelados.
 
 Corre de corrido 2020-01-01 → 2026-09-30 cada nivel congelado (corrida B: 3000 USDT con contratos reales) y cada
 estrategia sola (corrida A, peso 1). Sólo usa pesos congelados en 54ddf76, así que no elige nada (protocolo §8).
 
-    CASCADA_ABRIR_OOS=1 python -m validacion.series_web --datos … --top50 … --resumen … --universo … --xbt …
+    CASCADA_ABRIR_OOS=1 python -m validacion.series_web --datos … --top50 … --resumen … --universo … --xbt … [--solo nivel_30,sola_mom_alts]
 """
 import argparse
 import json
@@ -47,6 +47,8 @@ def main(a):
     cong = json.loads(CONGELADO.read_text())
     trabajos = [(f"nivel_{n}", w, "B", a) for n, w in sorted(cong["pesos_por_nivel"].items(), key=lambda x: -int(x[0]))]
     trabajos += [(f"sola_{k}", {k: 1.0}, "A", a) for k in ESTRATEGIAS]
+    if a.solo:                                       # sólo rehace estas curvas; las demás se leen de lo guardado
+        trabajos = [t for t in trabajos if t[0] in a.solo.split(",")]
     if not a.solo_exportar:
         with ProcessPoolExecutor(a.procesos) as ex:
             for c in ex.map(_correr, trabajos):
@@ -59,7 +61,7 @@ def main(a):
     S = pd.DataFrame({k: dia(s) / s.E.iat[0] for k, s in sol.items()}); S.index.name = "fecha"
     N.round(6).to_csv(WEB / "cascada_niveles.csv"); S.round(6).to_csv(WEB / "estrategias.csv")
     out = {k: resumen(s) for k, s in niv.items()}
-    out["_info"] = dict(fuente="validacion/series_web.py, motor 1.3 (enmienda E14), pesos congelados 54ddf76",
+    out["_info"] = dict(fuente="validacion/series_web.py, motor 1.3.1 (enmiendas E14 y E15), pesos congelados 54ddf76",
                         ajuste="2020-01-01 → 2023-12-31", prueba="2024-01-01 → 2026-09-30", corrida="B (3000 USDT)")
     (WEB / "resumen.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     for k, v in out.items():
@@ -73,4 +75,5 @@ if __name__ == "__main__":
         ap.add_argument("--" + k, required=True)
     ap.add_argument("--xbt", default=None); ap.add_argument("--procesos", type=int, default=2)
     ap.add_argument("--solo_exportar", action="store_true")
+    ap.add_argument("--solo", default="", help="claves a rehacer (ej. nivel_30,sola_mom_alts)")
     main(ap.parse_args())

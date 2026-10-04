@@ -16,7 +16,8 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 AUDITADO = "c08d856ec64a356e8103cab3675a972fb9f979c9"
-PRUEBAS = ["tests.test_auditoria", "tests.test_servicio", "tests.test_config", "tests.test_subcuenta", "tests.test_auditoria2"]
+PRUEBAS = ["tests.test_auditoria", "tests.test_servicio", "tests.test_config", "tests.test_subcuenta", "tests.test_auditoria2",
+           "tests.test_e15"]
 
 
 def sha(p):

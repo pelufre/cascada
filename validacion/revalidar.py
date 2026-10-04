@@ -66,6 +66,7 @@ def _caso(args):
     m["p95"] = p95_motor(rr.serie)
     m["por_año"] = por_año(rr.serie)
     m.update(_stats_lotes(rr))
+    m["mom_saltadas"] = (rr.db.get("est_mom_alts") or {}).get("saltadas", 0)     # E15: entradas de c40 que no abrieron
     at = rr.info["atribucion"]
     m["atribucion"] = at
     m["funding"] = at["funding_principal"] + (at.get("balas", {}).get("funding") or 0.0)

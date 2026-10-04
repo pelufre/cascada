@@ -23,7 +23,7 @@ from .subcuenta import TransferenciaIncierta, TransferidorSubcuenta, planificar
 from .telegram import AYUDA, Telegram
 from . import x as XM
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 log = logging.getLogger("cascada")
 CUATRO_H = pd.Timedelta(hours=4)
 ESPERA_CIERRE = 20          # segundos después del cierre de vela antes de decidir

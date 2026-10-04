@@ -8,6 +8,8 @@ Cada estrategia, en su momento de decisión t (cierre de vela), devuelve la list
 Un lote que estaba y ya no aparece se cierra en la apertura siguiente.
 El estado de cada estrategia se guarda en la base; `abiertos` trae los lotes vivos del libro (con precio de entrada y stop).
 """
+import json
+
 import numpy as np
 import pandas as pd
 
@@ -216,9 +218,23 @@ class MomentumC40(Estrategia):
     def paso(self, t, datos, st, abiertos, universo, mercados):
         pos = st.setdefault("pos", {})            # simbolo -> dict(id, frac, dist)
         cerr = set(st.get("_cerrados", []))
+        # Un cupo sigue ocupado sólo si su lote está abierto. Se libera si el lote se cerró (stop, tope, corte…) y también
+        # si la entrada pedida en la decisión anterior no llegó a abrirse (contrato mínimo, reparto en 0, lado opuesto,
+        # orden pendiente, IOC sin llenar): como en la especificación de c40, esa entrada se saltea y hoy se vuelve a
+        # elegir desde cero (enmienda E15; antes el cupo quedaba reservado y la reintentaba con los datos del día viejo).
         for s in list(pos):
-            if pos[s]["id"] in cerr or (pos[s]["id"] not in abiertos and pos[s].get("vivo")):
-                pos.pop(s)                        # salió por stop
+            i = pos[s]["id"]
+            if i not in abiertos:
+                if i not in cerr and not pos[s].get("vivo"):
+                    st["saltadas"] = st.get("saltadas", 0) + 1
+                pos.pop(s)
+        # un lote propio abierto que no figura (en real: llenado tardío de una orden que se dio por perdida) ocupa su cupo
+        ids = {p["id"] for p in pos.values()}
+        for i, L in abiertos.items():
+            if i not in ids and L["simbolo"] not in pos:
+                frac = json.loads(L.get("meta") or "{}").get("frac", 1 / self.S)
+                dist = abs(L["precio_entrada"] - L["stop"]) if L.get("stop") else 0.0
+                pos[L["simbolo"]] = dict(id=i, frac=float(frac), dist=float(dist), vivo=True)
         D = {}
         for s in set(universo) | {"BTC", "ETH"}:
             d = datos.v1d(s, t, dias=200)
