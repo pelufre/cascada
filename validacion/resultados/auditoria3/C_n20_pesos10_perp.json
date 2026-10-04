@@ -1,0 +1,55 @@
+{
+ "cagr": 0.3676238272884482,
+ "dd_optimista": -0.14576453278149004,
+ "dd_pesimista": -0.1475920605078398,
+ "dd_estricta": -0.26672220948912584,
+ "sharpe": 1.3697200207056004,
+ "calmar": 2.490810318817392,
+ "nocional_max": 1.0082681770641126,
+ "exposicion_max": 1.133471367622212,
+ "incidencias": {
+  "bajo_minimo": 22
+ },
+ "atribucion": {
+  "por_estrategia": {
+   "mom_alts": 637.7308087093029,
+   "rsi2_eth": 498.2465067150581,
+   "wr2": 307.8986788832341,
+   "sold_btc": 12.660318556339423,
+   "rsi2_btc": 358.0649180289066,
+   "ab_cortos": 1577.96320298838,
+   "balas5": 701.0357024104028
+  },
+  "lotes_cerrados": {
+   "mom_alts": 41.8847693703783,
+   "rsi2_eth": 279.05030645261706,
+   "wr2": 272.82763609663607,
+   "sold_btc": 12.660318556339423,
+   "rsi2_btc": 220.93848817676863,
+   "ab_cortos": 1577.96320298838
+  },
+  "lotes_abiertos": {
+   "rsi2_eth": 219.196200262441,
+   "rsi2_btc": 137.12642985213802,
+   "mom_alts": 595.8460393389246,
+   "wr2": 35.071042786598035
+  },
+  "funding_principal": 606.7991631428313,
+  "comisiones_principal": 148.81133578813564,
+  "transferido_a_balas": 77.75231908129228,
+  "residuo_principal": -2.546585164964199e-11,
+  "balas": {
+   "campañas_cerradas": 701.0357024104028,
+   "campaña_abierta": 0.0,
+   "funding": 78.61042571999988,
+   "comisiones": 112.55234417773714,
+   "campañas": 111,
+   "liquidaciones": 0
+  },
+  "residuo_balas": 1.1368683772161603e-13,
+  "total": 4093.600136291624
+ },
+ "lotes": 312,
+ "comisiones": 261.3636799658728,
+ "funding": 685.4095888628311
+}

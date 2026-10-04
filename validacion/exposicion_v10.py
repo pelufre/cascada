@@ -49,7 +49,9 @@ def main(a):
     out["sin_contrato_kucoin"] = dict(
         lotes=int(len(sin)), pnl_total=float(sin.pnl.sum()),
         por_simbolo={s: dict(lotes=int(len(g)), pnl=float(g.pnl.sum()), tramos=sorted(g.tramo.unique()),
-                             estrategias=sorted(g.estrategia.unique())) for s, g in sin.groupby("simbolo")},
+                             estrategias=sorted(g.estrategia.unique()),
+                             por_tramo={tr: dict(lotes=int(len(x)), pnl=float(x.pnl.sum())) for tr, x in g.groupby("tramo")})
+                     for s, g in sin.groupby("simbolo")},
         nota="pnl neto de comisiones, sin funding; quitar el símbolo cambia también señales y cupos (ver variante operable)")
     # 2) huecos de 2022 (E9)
     C = M["c"]; O = M["o"]

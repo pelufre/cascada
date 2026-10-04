@@ -1,0 +1,840 @@
+{
+ "sin_contrato_kucoin": {
+  "lotes": 29,
+  "pnl_total": 1607.106594653667,
+  "por_simbolo": {
+   "BONK": {
+    "lotes": 1,
+    "pnl": -1.711447987286981,
+    "tramos": [
+     "prueba"
+    ],
+    "estrategias": [
+     "mom_alts"
+    ],
+    "por_tramo": {
+     "prueba": {
+      "lotes": 1,
+      "pnl": -1.711447987286981
+     }
+    }
+   },
+   "BTT": {
+    "lotes": 1,
+    "pnl": -10.794174947438872,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "mom_alts"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 1,
+      "pnl": -10.794174947438872
+     }
+    }
+   },
+   "DEXE": {
+    "lotes": 2,
+    "pnl": 291.48502710440005,
+    "tramos": [
+     "prueba"
+    ],
+    "estrategias": [
+     "ab_cortos"
+    ],
+    "por_tramo": {
+     "prueba": {
+      "lotes": 2,
+      "pnl": 291.48502710440005
+     }
+    }
+   },
+   "EOS": {
+    "lotes": 3,
+    "pnl": 296.6075678776003,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "ab_cortos"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 3,
+      "pnl": 296.6075678776003
+     }
+    }
+   },
+   "FTM": {
+    "lotes": 8,
+    "pnl": 239.61285154740827,
+    "tramos": [
+     "IS",
+     "prueba"
+    ],
+    "estrategias": [
+     "ab_cortos",
+     "mom_alts"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 6,
+      "pnl": 240.83547014882825
+     },
+     "prueba": {
+      "lotes": 2,
+      "pnl": -1.222618601419997
+     }
+    }
+   },
+   "FTT": {
+    "lotes": 1,
+    "pnl": 762.6647208756,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "ab_cortos"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 1,
+      "pnl": 762.6647208756
+     }
+    }
+   },
+   "HNT": {
+    "lotes": 3,
+    "pnl": 29.64847037400014,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "ab_cortos"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 3,
+      "pnl": 29.64847037400014
+     }
+    }
+   },
+   "IP": {
+    "lotes": 1,
+    "pnl": 3.143624309200001,
+    "tramos": [
+     "prueba"
+    ],
+    "estrategias": [
+     "mom_alts"
+    ],
+    "por_tramo": {
+     "prueba": {
+      "lotes": 1,
+      "pnl": 3.143624309200001
+     }
+    }
+   },
+   "JST": {
+    "lotes": 1,
+    "pnl": -0.027251624399999994,
+    "tramos": [
+     "prueba"
+    ],
+    "estrategias": [
+     "mom_alts"
+    ],
+    "por_tramo": {
+     "prueba": {
+      "lotes": 1,
+      "pnl": -0.027251624399999994
+     }
+    }
+   },
+   "KLAY": {
+    "lotes": 1,
+    "pnl": 4.700675656600008,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "ab_cortos"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 1,
+      "pnl": 4.700675656600008
+     }
+    }
+   },
+   "MATIC": {
+    "lotes": 2,
+    "pnl": -49.765451832899856,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "ab_cortos",
+     "mom_alts"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 2,
+      "pnl": -49.765451832899856
+     }
+    }
+   },
+   "MIOTA": {
+    "lotes": 2,
+    "pnl": -1.082003162639997,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "mom_alts"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 2,
+      "pnl": -1.082003162639997
+     }
+    }
+   },
+   "MKR": {
+    "lotes": 2,
+    "pnl": 53.1965151000001,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "ab_cortos"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 2,
+      "pnl": 53.1965151000001
+     }
+    }
+   },
+   "OMG": {
+    "lotes": 1,
+    "pnl": -10.572528636476385,
+    "tramos": [
+     "IS"
+    ],
+    "estrategias": [
+     "mom_alts"
+    ],
+    "por_tramo": {
+     "IS": {
+      "lotes": 1,
+      "pnl": -10.572528636476385
+     }
+    }
+   }
+  },
+  "nota": "pnl neto de comisiones, sin funding; quitar el símbolo cambia también señales y cupos (ver variante operable)"
+ },
+ "huecos_2022": {
+  "lotes_expuestos": 4,
+  "detalle": [
+   {
+    "simbolo": "TRX",
+    "desde": "2022-02-26 00:00:00",
+    "hasta": "2022-02-28 20:00:00",
+    "tramo": "IS",
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 796.416786,
+    "movimiento_hueco": 0.04010109519797811,
+    "efecto_aprox": -31.93718535265376,
+    "resultado_lote": -80.64888838379979,
+    "salida": "salida",
+    "cerro": "2022-03-09 04:00:00"
+   },
+   {
+    "simbolo": "FIL",
+    "desde": "2022-04-01 00:00:00",
+    "hasta": "2022-04-02 20:00:00",
+    "tramo": "IS",
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 53.246193,
+    "movimiento_hueco": -0.021865293444498946,
+    "efecto_aprox": -1.1642436347474256,
+    "resultado_lote": -7.716029494739992,
+    "salida": "salida",
+    "cerro": "2022-04-07 00:00:00"
+   },
+   {
+    "simbolo": "VET",
+    "desde": "2022-04-01 00:00:00",
+    "hasta": "2022-04-02 20:00:00",
+    "tramo": "IS",
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 42.630588,
+    "movimiento_hueco": -0.011402946828955596,
+    "efecto_aprox": -0.4861143282511125,
+    "resultado_lote": -3.257281875600007,
+    "salida": "salida",
+    "cerro": "2022-04-07 00:00:00"
+   },
+   {
+    "simbolo": "WAVES",
+    "desde": "2022-04-01 00:00:00",
+    "hasta": "2022-04-02 20:00:00",
+    "tramo": "IS",
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 43.205161999999994,
+    "movimiento_hueco": -0.10172607121192634,
+    "efecto_aprox": -4.395091386334813,
+    "resultado_lote": -10.16633118346779,
+    "salida": "stop",
+    "cerro": "2022-04-04 20:00:00"
+   }
+  ],
+  "peor_movimiento_en_contra": -0.10172607121192634
+ },
+ "funding_extremo": {
+  "eventos_abs_mayor_1pct": 594,
+  "lotes_expuestos": 59,
+  "detalle": [
+   {
+    "fecha": "2021-11-09 16:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.018,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.5386985603999999
+   },
+   {
+    "fecha": "2021-11-10 00:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.018,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.5386985603999999
+   },
+   {
+    "fecha": "2021-11-10 08:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.018,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.5386985603999999
+   },
+   {
+    "fecha": "2021-11-10 16:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.018,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.5386985603999999
+   },
+   {
+    "fecha": "2021-11-11 00:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.018,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.5386985603999999
+   },
+   {
+    "fecha": "2021-11-11 08:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.018,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.5386985603999999
+   },
+   {
+    "fecha": "2021-11-11 14:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.024,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.7182647472
+   },
+   {
+    "fecha": "2021-11-11 16:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.024,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.7182647472
+   },
+   {
+    "fecha": "2021-11-11 18:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.024,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.7182647472
+   },
+   {
+    "fecha": "2021-11-11 20:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.024,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.7182647472
+   },
+   {
+    "fecha": "2021-11-11 22:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.024,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.7182647472
+   },
+   {
+    "fecha": "2021-11-12 00:00:00",
+    "simbolo": "OMG",
+    "tasa": -0.024,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 29.927697799999997,
+    "pago_aprox": -0.7182647472
+   },
+   {
+    "fecha": "2022-11-09 16:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.01074902,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 9.00786304119888
+   },
+   {
+    "fecha": "2022-11-09 16:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.015,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 12.792529665
+   },
+   {
+    "fecha": "2022-11-09 20:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.02,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 17.056706220000002
+   },
+   {
+    "fecha": "2022-11-10 00:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.025,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 20.9504286
+   },
+   {
+    "fecha": "2022-11-10 00:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.02,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 17.056706220000002
+   },
+   {
+    "fecha": "2022-11-10 04:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.025,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 20.9504286
+   },
+   {
+    "fecha": "2022-11-10 04:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.02,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 17.056706220000002
+   },
+   {
+    "fecha": "2022-11-10 06:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.025,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 20.9504286
+   },
+   {
+    "fecha": "2022-11-10 06:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.02,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 17.056706220000002
+   },
+   {
+    "fecha": "2022-11-10 08:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.02,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 17.056706220000002
+   },
+   {
+    "fecha": "2022-11-10 10:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.02,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 17.056706220000002
+   },
+   {
+    "fecha": "2022-11-10 12:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.02,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 17.056706220000002
+   },
+   {
+    "fecha": "2022-11-10 18:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.02212133,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 18.53805378808152
+   },
+   {
+    "fecha": "2022-11-10 18:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.01610749,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 13.73703624357939
+   },
+   {
+    "fecha": "2022-11-10 20:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.025,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 20.9504286
+   },
+   {
+    "fecha": "2022-11-10 20:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.01792917,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 15.290629272921873
+   },
+   {
+    "fecha": "2022-11-11 00:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.0140554,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 11.778666165777597
+   },
+   {
+    "fecha": "2022-11-11 04:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.01836712,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 15.39196144590528
+   },
+   {
+    "fecha": "2022-11-11 06:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.01625982,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 13.62600791835408
+   },
+   {
+    "fecha": "2022-11-11 16:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.025,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 20.9504286
+   },
+   {
+    "fecha": "2022-11-11 16:00:00",
+    "simbolo": "SOL",
+    "tasa": -0.01139731,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 852.835311,
+    "pago_aprox": 9.720028418413412
+   },
+   {
+    "fecha": "2022-11-12 06:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.0185311,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 15.529379497178397
+   },
+   {
+    "fecha": "2022-11-13 22:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.025,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 20.9504286
+   },
+   {
+    "fecha": "2022-11-14 00:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.025,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 20.9504286
+   },
+   {
+    "fecha": "2022-11-14 02:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.01139785,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 9.551593704740398
+   },
+   {
+    "fecha": "2022-11-14 08:00:00",
+    "simbolo": "FTT",
+    "tasa": -0.025,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 838.0171439999999,
+    "pago_aprox": 20.9504286
+   },
+   {
+    "fecha": "2026-02-19 16:00:00",
+    "simbolo": "INJ",
+    "tasa": -0.01183133,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 132.177045,
+    "pago_aprox": -1.5638302378198499
+   },
+   {
+    "fecha": "2026-02-20 00:00:00",
+    "simbolo": "INJ",
+    "tasa": -0.01126469,
+    "estrategia": "mom_alts",
+    "lado": 1,
+    "nocional_entrada": 132.177045,
+    "pago_aprox": -1.48893343704105
+   },
+   {
+    "fecha": "2026-07-21 18:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.010947,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 4.153512929400001
+   },
+   {
+    "fecha": "2026-07-21 19:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01057634,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 4.012877038068
+   },
+   {
+    "fecha": "2026-07-22 01:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01459832,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 5.538897494064
+   },
+   {
+    "fecha": "2026-07-22 02:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01603548,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 6.084185028696001
+   },
+   {
+    "fecha": "2026-07-22 13:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01358876,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 5.155850036952001
+   },
+   {
+    "fecha": "2026-07-22 14:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01404101,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 5.327442822402
+   },
+   {
+    "fecha": "2026-07-22 15:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01250204,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 4.743526517208
+   },
+   {
+    "fecha": "2026-07-22 16:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.0104185,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 3.9529893537000005
+   },
+   {
+    "fecha": "2026-07-23 04:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.0107369,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 4.07379674538
+   },
+   {
+    "fecha": "2026-07-23 05:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01475936,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 5.599999323072
+   },
+   {
+    "fecha": "2026-07-23 06:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01139814,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 4.324684558428
+   },
+   {
+    "fecha": "2026-07-23 07:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01255142,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 4.762262286684001
+   },
+   {
+    "fecha": "2026-07-23 08:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01038919,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 3.941868547638
+   },
+   {
+    "fecha": "2026-07-23 11:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01320239,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 5.009253454278
+   },
+   {
+    "fecha": "2026-07-23 12:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.02,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 7.588404000000001
+   },
+   {
+    "fecha": "2026-07-23 13:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01401785,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 5.3186554505700006
+   },
+   {
+    "fecha": "2026-07-24 00:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01834221,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 6.959404986642001
+   },
+   {
+    "fecha": "2026-07-24 01:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01966489,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 7.461256496778001
+   },
+   {
+    "fecha": "2026-07-26 12:00:00",
+    "simbolo": "DEXE",
+    "tasa": -0.01191724,
+    "estrategia": "ab_cortos",
+    "lado": -1,
+    "nocional_entrada": 379.4202,
+    "pago_aprox": 4.521641584248001
+   }
+  ],
+  "pagado_aprox_total": 519.9000866348979
+ }
+}

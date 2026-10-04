@@ -157,6 +157,12 @@ def descomposicion():
             dd = b.get("dd_pesimista", b.get("dd_optimista"))
             celdas += [f"{pc(a.get('cagr'))} → {pc(b.get('cagr'))}", pc(dd)]
         out.append(f"| {p} | {txt} | " + " | ".join(celdas) + " |")
+    c20, c30 = d.get("C_n20_pesos10_perp") or {}, d.get("C_n30_pesos10_perp") or {}
+    out += ["", "A: la serie diaria que declaraba la 1.0 (caída de cierres diarios); el resto, caída pesimista del motor 1.3. "
+            f"Costos del paso C en la prueba (arranque 3000 USDT): nivel 20, comisiones {num(c20.get('comisiones'), 0)} y funding "
+            f"{num(c20.get('funding'), 0)} USDT; nivel 30, {num(c30.get('comisiones'), 0)} y {num(c30.get('funding'), 0)}. E − C "
+            "no es «el costo»: sin costos ni funding cambian también las señales, los tamaños y la trayectoria; los pasos "
+            "describen, no se suman."]
     return "\n".join(out)
 
 

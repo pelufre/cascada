@@ -1,0 +1,160 @@
+{
+ "A_n20_declarado_1.0": {
+  "cagr": 0.5274937697472826,
+  "dd_optimista": -0.1350253295957442,
+  "nota": "serie diaria de la 1.0 (modelo de investigación, pesos elegidos con 2019–2026)"
+ },
+ "A_n30_declarado_1.0": {
+  "cagr": 1.1478516439102244,
+  "dd_optimista": -0.21288004081636758,
+  "nota": "serie diaria de la 1.0 (modelo de investigación, pesos elegidos con 2019–2026)"
+ },
+ "D_n30_is_lotes": {
+  "cagr": 0.6668633409406595,
+  "dd_optimista": -0.20092231993011223,
+  "dd_pesimista": -0.2371367407221937,
+  "dd_estricta": -0.24909974344212682,
+  "sharpe": 1.7879879176144058,
+  "calmar": 2.8121468605402296,
+  "nocional_max": 1.0121858988253272,
+  "exposicion_max": 1.3382513032319592,
+  "incidencias": {
+   "bajo_minimo": 53
+  },
+  "lotes": 314,
+  "comisiones": 956.9607720530283,
+  "funding": 2969.808994994841
+ },
+ "D_n30_oos_lotes": {
+  "cagr": 0.27774484252631204,
+  "dd_optimista": -0.13331564970749588,
+  "dd_pesimista": -0.1419752018426229,
+  "dd_estricta": -0.14921440691467203,
+  "sharpe": 1.3084136998271423,
+  "calmar": 1.956291232001117,
+  "nocional_max": 1.0171044152497524,
+  "exposicion_max": 1.3000467389508343,
+  "incidencias": {
+   "bajo_minimo": 112,
+   "tope": 1
+  },
+  "lotes": 288,
+  "comisiones": 275.7116874796114,
+  "funding": 426.7444923127706
+ },
+ "E_n30_pesos10_perp_sin_costos_ni_funding": {
+  "cagr": 0.8371742563568414,
+  "dd_optimista": -0.30038410110047187,
+  "dd_pesimista": -0.3045857087577114,
+  "dd_estricta": -0.35932831865339787,
+  "sharpe": 1.626320087370143,
+  "calmar": 2.748567093877631,
+  "nocional_max": 1.1046538704531932,
+  "exposicion_max": 1.2937874596901242,
+  "incidencias": {
+   "bajo_minimo": 84,
+   "tope": 99
+  },
+  "lotes": 308,
+  "comisiones": 0.0,
+  "funding": 0.0
+ },
+ "C_n30_pesos10_perp": {
+  "cagr": 0.52909762769151,
+  "dd_optimista": -0.32730174459142913,
+  "dd_pesimista": -0.33135456306901,
+  "dd_estricta": -0.35777738973160633,
+  "sharpe": 1.1990084328876218,
+  "calmar": 1.596771816844776,
+  "nocional_max": 1.1040130337691498,
+  "exposicion_max": 1.29430196437735,
+  "incidencias": {
+   "bajo_minimo": 120,
+   "tope": 92
+  },
+  "lotes": 302,
+  "comisiones": 739.8484197841918,
+  "funding": 1326.6103960097153
+ },
+ "B_n30_pesos10_spot": {
+  "cagr": 0.470066265264256,
+  "dd_optimista": -0.24829230543405922,
+  "dd_pesimista": -0.25044076134162163,
+  "dd_estricta": -0.3139134102473602,
+  "sharpe": 1.3269933688580013,
+  "calmar": 1.8769559026497578,
+  "nocional_max": 1.0420849997513413,
+  "exposicion_max": 1.2317029332079166,
+  "incidencias": {
+   "bajo_minimo": 209,
+   "tope": 31
+  },
+  "lotes": 266,
+  "comisiones": 765.06780002903,
+  "funding": 0.0
+ },
+ "E_n20_pesos10_perp_sin_costos_ni_funding": {
+  "cagr": 0.4891662749495551,
+  "dd_optimista": -0.13356852154081011,
+  "dd_pesimista": -0.1413124954397338,
+  "dd_estricta": -0.26669567974227903,
+  "sharpe": 1.7113016535804866,
+  "calmar": 3.461592504097928,
+  "nocional_max": 0.9892755191552706,
+  "exposicion_max": 1.1432745612909025,
+  "incidencias": {
+   "bajo_minimo": 22
+  },
+  "lotes": 312,
+  "comisiones": 0.0,
+  "funding": 0.0
+ },
+ "C_n20_pesos10_perp": {
+  "cagr": 0.3676238272884482,
+  "dd_optimista": -0.14576453278149004,
+  "dd_pesimista": -0.1475920605078398,
+  "dd_estricta": -0.26672220948912584,
+  "sharpe": 1.3697200207056004,
+  "calmar": 2.490810318817392,
+  "nocional_max": 1.0082681770641126,
+  "exposicion_max": 1.133471367622212,
+  "incidencias": {
+   "bajo_minimo": 22
+  },
+  "lotes": 312,
+  "comisiones": 261.3636799658728,
+  "funding": 685.4095888628311
+ },
+ "B_n20_pesos10_spot": {
+  "cagr": 0.292987234459676,
+  "dd_optimista": -0.11907747172729888,
+  "dd_pesimista": -0.13132134674913276,
+  "dd_estricta": -0.22852681536520325,
+  "sharpe": 1.3940462208843056,
+  "calmar": 2.2310708937472183,
+  "nocional_max": 0.7628983899360576,
+  "exposicion_max": 0.8728386848750334,
+  "incidencias": {
+   "bajo_minimo": 190
+  },
+  "lotes": 145,
+  "comisiones": 164.52535640309486,
+  "funding": 0.0
+ },
+ "D_n20_pesos_congelados": {
+  "cagr": 0.15740630988306514,
+  "dd_optimista": -0.08647681572020505,
+  "dd_pesimista": -0.0880602016867883,
+  "dd_estricta": -0.09169586150005371,
+  "comisiones": 132.173642185619,
+  "funding": 199.93576764927434
+ },
+ "D_n30_pesos_congelados": {
+  "cagr": 0.27774484252631204,
+  "dd_optimista": -0.13331564970749588,
+  "dd_pesimista": -0.1419752018426229,
+  "dd_estricta": -0.14921440691467203,
+  "comisiones": 275.7116874796114,
+  "funding": 426.7444923127706
+ }
+}

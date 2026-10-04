@@ -1,0 +1,138 @@
+{
+ "detecciones": {
+  "V05 opuestos desde plano (exchange 15, libro 5)": "corregido",
+  "V04 reinicio con estado terminal no aplicado (libro vacío)": "corregido",
+  "V04 orden abierta que llena tarde (libro 3)": "corregido",
+  "V02 reserva retroactiva (0 liquidaciones con reserva enviada al cierre)": "corregido",
+  "V03 apertura real fallida deja activo=True": "corregido",
+  "V07 funding de balas pedido a BTC/USDT:USDT": "DEFECTO PRESENTE",
+  "V01 gap y rebote (caja 500, serie 1000)": "corregido",
+  "V01 stop y cierre más alto (caja 900, serie 1200)": "corregido",
+  "V06 transferencia con respuesta perdida (200 transferidos)": "corregido"
+ },
+ "salidas": {
+  "opuestos_desde_plano": {
+   "exchange": {
+    "BTC": 10.0
+   },
+   "libro": {
+    "BTC": 10.0
+   },
+   "conciliado": true
+  },
+  "reinicio_estado_terminal_no_aplicado": {
+   "exchange": {
+    "BTC": 10.0
+   },
+   "libro": {
+    "BTC": 10.0
+   },
+   "ordenes": [
+    {
+     "estado": "cerrada",
+     "aplicado": 1
+    }
+   ]
+  },
+  "orden_abierta_tardia": {
+   "exchange": {
+    "BTC": 10.0
+   },
+   "libro": {
+    "BTC": 10.0
+   },
+   "ordenes": [
+    {
+     "estado": "cerrada",
+     "aplicado": 1
+    }
+   ]
+  },
+  "reserva_retroactiva": {
+   "liq_sin_reserva": 94.11214953271028,
+   "minimo": 90,
+   "liquidaciones": 0,
+   "reserva_enviada_al_cierre": [],
+   "reserva_usada": false
+  },
+  "balas_apertura_fallida": {
+   "activo": false,
+   "ntn": 0.0,
+   "ultima_vela": "2026-01-07 04:00:00"
+  },
+  "funding_btc_contrato": "BTC/USDT:USDT",
+  "gap_rebote": {
+   "serie": [
+    {
+     "t": "2026-01-06 04:00:00",
+     "E": 1000.0,
+     "E_peor": 1000.0,
+     "E_mejor": 1000.0
+    },
+    {
+     "t": "2026-01-06 08:00:00",
+     "E": 1000.0,
+     "E_peor": 1000.0,
+     "E_mejor": 1000.0
+    },
+    {
+     "t": "2026-01-06 12:00:00",
+     "E": 500.0,
+     "E_peor": 500.0,
+     "E_mejor": 500.0
+    },
+    {
+     "t": "2026-01-06 16:00:00",
+     "E": 500.0,
+     "E_peor": 500.0,
+     "E_mejor": 500.0
+    }
+   ],
+   "drawdowns": {
+    "dd_optimista": -0.5,
+    "dd_pesimista": -0.5,
+    "dd_estricta": -0.5
+   },
+   "caja_final": 500.0
+  },
+  "stop_cierre": {
+   "serie": [
+    {
+     "t": "2026-01-06 04:00:00",
+     "E": 1000.0,
+     "E_peor": 1000.0,
+     "E_mejor": 1000.0
+    },
+    {
+     "t": "2026-01-06 08:00:00",
+     "E": 1000.0,
+     "E_peor": 1000.0,
+     "E_mejor": 1000.0
+    },
+    {
+     "t": "2026-01-06 12:00:00",
+     "E": 900.0,
+     "E_peor": 900.0,
+     "E_mejor": 1200.0
+    },
+    {
+     "t": "2026-01-06 16:00:00",
+     "E": 900.0,
+     "E_peor": 900.0,
+     "E_mejor": 900.0
+    }
+   ],
+   "drawdowns": {
+    "dd_optimista": -0.09999999999999998,
+    "dd_pesimista": -0.09999999999999998,
+    "dd_estricta": -0.25
+   },
+   "caja_final": 900.0
+  },
+  "transferencia_respuesta_perdida": {
+   "solicitado": 100,
+   "transferido": 100,
+   "clientOid_distintos": 1
+  }
+ }
+}

@@ -1,0 +1,27 @@
+{
+ "desde": "2026-09-01 00:00:00",
+ "hasta": "2026-10-01 00:00:00",
+ "operaciones_servicio": 44,
+ "operaciones_motor": 44,
+ "eventos": 44,
+ "diferencias": 0,
+ "patrimonio_servicio": 3106.3432755976,
+ "patrimonio_motor": 3106.3429784027003,
+ "dif_patrimonio_max": 0.0006329499046759945,
+ "dif_patrimonio_media": 2.1674950426483733e-05,
+ "tolerancia_patrimonio": 0.005,
+ "patrimonio_ok": true,
+ "balances_servicio": {
+  "caja": 1975.9213403329368,
+  "balas_W": 1083.337217364663,
+  "funding_principal": 2.7337446679060013,
+  "funding_balas": 2.7058719
+ },
+ "balances_motor": {
+  "caja": 1974.6370550670524,
+  "balas_W": 1083.3371137179417,
+  "funding_principal": 2.7337446679060013,
+  "funding_balas": 2.7058719
+ },
+ "detalle": []
+}
