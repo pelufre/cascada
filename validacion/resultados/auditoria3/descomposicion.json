@@ -10,12 +10,12 @@
   "nota": "serie diaria de la 1.0 (modelo de investigación, pesos elegidos con 2019–2026)"
  },
  "D_n30_is_lotes": {
-  "cagr": 0.6668633409406595,
+  "cagr": 0.6667958952686863,
   "dd_optimista": -0.20092231993011223,
   "dd_pesimista": -0.2371367407221937,
   "dd_estricta": -0.24909974344212682,
-  "sharpe": 1.7879879176144058,
-  "calmar": 2.8121468605402296,
+  "sharpe": 1.787853224808225,
+  "calmar": 2.8118624437443853,
   "nocional_max": 1.0121858988253272,
   "exposicion_max": 1.3382513032319592,
   "incidencias": {
@@ -23,7 +23,7 @@
   },
   "lotes": 314,
   "comisiones": 956.9607720530283,
-  "funding": 2969.808994994841
+  "funding": 2973.5570759170514
  },
  "D_n30_oos_lotes": {
   "cagr": 0.27774484252631204,

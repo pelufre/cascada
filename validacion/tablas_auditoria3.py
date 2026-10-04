@@ -168,6 +168,25 @@ def descomposicion():
     return "\n".join(out)
 
 
+def estrategias():
+    """Sección 5 del informe con el motor 1.3: cada estrategia sola (corrida A, peso 1), 2020 → sep 2026 de corrido."""
+    import pandas as pd
+    from .motor_bt import metricas, por_año
+    nombres = dict(ab_cortos="Cortos", mom_alts="Momentum", balas5="30 balas", rsi2_btc="RSI2 BTC", wr2="WR2",
+                   sold_btc="Soldados", rsi2_eth="RSI2 ETH")
+    out = ["| Estrategia | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026* | Tasa | Caída pesimista | Caída estricta | Sharpe |",
+           "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for k, n in nombres.items():
+        f = RES / f"completo_sola_{k}.pkl"
+        if not f.exists():
+            continue
+        sr = pd.read_pickle(f)
+        m, a = metricas(sr), por_año(sr)
+        out.append(f"| {n} | " + " | ".join(pc(a.get(str(y)), 1) for y in range(2020, 2027)) +
+                   f" | {pc(m['cagr'])} | {pc(m['dd_pesimista'])} | {pc(m['dd_estricta'])} | {fx(m['sharpe'])} |")
+    return "\n".join(out)
+
+
 if __name__ == "__main__":
     print("## revalidacion\n" + revalidacion())
     print("\n## atribucion\n" + atribucion())

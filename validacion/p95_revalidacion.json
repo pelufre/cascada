@@ -2,9 +2,9 @@
  "motor": "1.3 (enmienda E14)",
  "pesos": "54ddf76",
  "fuente": "validacion/resultados/revalidacion/n{nivel}_IS_B.json",
- "revalidacion_sha256": "f6c6af02348ced9403d4ce9837d84e1aff7375526d0fd2eab203a51f1bf217a8",
+ "revalidacion_sha256": "242c94af74db20cf93b132894296864ce2d478357abb34043a9c2a856bbe103e",
  "p95_IS_B": {
-  "10": 0.09601938250355355,
+  "10": 0.09605871750919129,
   "20": 0.1954184554543744,
   "25": 0.24515976209301002,
   "30": 0.2981590833435568

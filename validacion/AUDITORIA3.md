@@ -1,6 +1,6 @@
 # Respuesta a la segunda auditoría — Cascada 1.2 → 1.3
 
-Fecha: 2026-10-03. Responde a «Segunda auditoría profunda de Cascada 1.2» (informe y evidencias del 2026-10-03).
+Fecha: 2026-10-04. Responde a «Segunda auditoría profunda de Cascada 1.2» (informe y evidencias del 2026-10-03).
 Código auditado: c08d856. Correcciones: rama `correcciones-auditoria2` (commit a5719ef y siguientes). Pesos: **los
 mismos de 54ddf76**, sin tocar (sha256 5da5dcd4…). Protocolo: enmienda E14 (`PROTOCOLO.md`).
 
@@ -23,7 +23,7 @@ mismos de 54ddf76**, sin tocar (sha256 5da5dcd4…). Protocolo: enmienda E14 (`P
 
 | | Hallazgo | Qué se hizo | Pruebas | Efecto en los números |
 |---|---|---|---|---|
-| V01 | Valoración antes de los stops; última vela sin valorar | Stops (con deslizamiento) antes de valorar; posición parada a su llenado real; funding después de los stops; última vela valorada; tramos cerrados en `hasta` | v01a, v01b (los dos ejemplos del informe), v01c | Junto con el resto de E14, la tasa de la prueba baja entre 0,2 y 1,0 pt según el nivel y las caídas cambian ±0,2 pt (§4) |
+| V01 | Valoración antes de los stops; última vela sin valorar | Stops (con deslizamiento) antes de valorar; posición parada a su llenado real; funding después de los stops; última vela valorada; tramos cerrados en `hasta` | v01a, v01b (los dos ejemplos del informe), v01c, v01d | Junto con el resto de E14, la tasa de la prueba baja entre 0,2 y 1,0 pt según el nivel y las caídas cambian ±0,2 pt (§4) |
 | V02 | Reserva de balas retroactiva | La reserva se decide al cierre con el precio de ese momento y protege la vela siguiente; nunca la que pasó | v02a, v02b | Nivel 30: 0 reservas en la prueba (el informe contó 0) y 0 en IS; liquidaciones en los cuatro niveles, IS y prueba: 0 |
 | V03 | Balas real con contabilidad sombra | En real el estado se lee de la subcuenta tras cada acción; cada acción se anota antes de mandarse; bloqueo ante incertidumbre; se completa o deshace lo que quedó a medias; órdenes con estado terminal; cierre verificado | v03a–v03g, o15b | Sólo real |
 | V04 | Órdenes no recuperables en ventanas internas | Aplicación atómica (transacción); recuperación por aplicado=0 en cualquier estado; llenados tardíos de órdenes abiertas; sin aumentos con orden pendiente | v04a–v04d (+ r01–r03) | Sólo ejecución |
@@ -50,7 +50,10 @@ parado a su llenado real, mejor punto con las posiciones del comienzo de la vela
 Los dos ejemplos del informe son ahora pruebas de regresión: vela 50/100/50/100 con stop en 90 → patrimonio 500 en esa
 misma vela y caída de −50 % en las tres medidas; vela 100/120/80/120 → patrimonio 900 (no 1200), mejor punto 1200 y
 caída estricta −25 %. La prueba v01c comprueba que el último patrimonio es el contable (caja + posición al último
-cierre) y que la atribución cierra con él.
+cierre) y que la atribución cierra con él. Al revisar la serie continua 2020 → 2026 contra la corrida de IS encontré un
+caso más del mismo tipo: el cargador dejaba afuera el evento de funding que liquida justo en el corte (00:00 del
+1/1/2024), que es de la última vela de IS; ahora entra (prueba v01d) y las corridas de IS se rehicieron (efecto menor al
+0,02 % del patrimonio final). Con eso, la serie continua y la de IS coinciden fila por fila hasta el corte.
 
 Qué dice ahora el rango: con la vela completa, el peor punto usa las ejecuciones reales (lo parado, a su llenado; lo
 demás, en su extremo desfavorable, todo a la vez) y el mejor punto las posiciones del comienzo de la vela en su extremo
@@ -171,6 +174,23 @@ el mecanismo dentro de cada campaña; la decisión §5.5 comparó dos carteras o
 por estrategia del informe salían de lotes de la cuenta principal sin balas ni funding; ahora la atribución las incluye
 (§5).
 
+Cada estrategia sola con el motor 1.3 (corrida A, peso 1, 2020 → sep 2026 de corrido; *2026 hasta septiembre). Ahora
+las series traen el mejor punto de cada vela y se puede calcular la caída estricta:
+
+| Estrategia | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026* | Tasa | Caída pesimista | Caída estricta | Sharpe |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Cortos | −14,6 % | 33,0 % | 183,7 % | −22,9 % | 17,9 % | 55,3 % | −2,9 % | 24,6 % | −51,7 % | −54,8 % | 0,74 |
+| Momentum | 59,1 % | 501,4 % | −7,2 % | 84,6 % | 16,4 % | −2,8 % | 21,0 % | 58,6 % | −55,7 % | −60,2 % | 1,16 |
+| 30 balas | 73,6 % | 58,2 % | 0,0 % | 166,4 % | 62,2 % | 26,1 % | 4,8 % | 50,4 % | −37,7 % | −38,0 % | 1,11 |
+| RSI2 BTC | 215,7 % | 96,4 % | −10,3 % | 85,3 % | 84,0 % | 3,6 % | 32,2 % | 62,0 % | −33,5 % | −34,7 % | 1,39 |
+| WR2 | 56,0 % | 14,6 % | 0,0 % | 30,9 % | 74,8 % | −17,1 % | 12,9 % | 22,0 % | −29,7 % | −30,1 % | 0,87 |
+| Soldados | 117,6 % | 52,5 % | −6,2 % | 31,6 % | 24,4 % | −5,0 % | −4,5 % | 25,5 % | −33,3 % | −34,5 % | 0,91 |
+| RSI2 ETH | 256,4 % | 217,1 % | −16,2 % | 30,1 % | 1,1 % | 35,9 % | 41,3 % | 60,1 % | −50,3 % | −51,6 % | 1,12 |
+
+30 balas es la que más cambia respecto de la tabla del informe (tasa 54,1 % → 50,4 %) por la conversión
+USDT ↔ BTC en spot, la ejecución a la apertura siguiente y el funding por evento; las demás cambian décimas
+(deslizamiento en los stops y última vela). La lectura del informe sobre cada una no cambia.
+
 ## 4. Revalidación con el motor 1.3 y los mismos pesos (E14)
 
 **Corrida B (3000 USDT, contratos reales). Antes = motor 1.2 (c08d856); después = motor 1.3.**
@@ -198,7 +218,7 @@ C2 compara la caída pesimista de la prueba con el p95 de IS del mismo motor. Ta
 | 10 % | 16,9 % · 9,9 % | 9,2 % · −4,8 % · −6,1 % |
 | 20 % | 37,4 % · 20,2 % | 16,4 % · −9,8 % · −10,2 % |
 | 25 % | 50,8 % · 25,1 % | 24,2 % · −12,2 % · −12,7 % |
-| 30 % | 67,5 % · 30,3 % | 27,7 % · −15,0 % · −15,6 % |
+| 30 % | 67,4 % · 30,3 % | 27,7 % · −15,0 % · −15,6 % |
 
 **Referencias en la prueba (corrida B)**
 
@@ -213,6 +233,8 @@ C2 compara la caída pesimista de la prueba con el p95 de IS del mismo motor. Ta
 | BTC al contado (comprar y mantener) | 28,1 % | −53,4 % | 0,52 |
 | ETH al contado (comprar y mantener) | 6,0 % | −68,0 % | 0,09 |
 
+Los pesos de «igual riesgo» salen de la volatilidad de IS de cada estrategia sola (corridas solas del motor 1.2, que sólo fijan esa referencia); al contado, caída de cierres de 4 h.
+
 **Incertidumbre muestral de la ventaja contra BTC tendencia** (2000 remuestreos por bloques de los retornos diarios de la prueba, pareados; percentiles 5 / 50 / 95 de la tasa anual):
 
 | Nivel | Cartera | BTC tendencia | Diferencia | P(diferencia > 0) |
@@ -226,12 +248,12 @@ C2 compara la caída pesimista de la prueba con el p95 de IS del mismo motor. Ta
 
 | Nivel | IS: tasa · caída · p95 | Prueba: tasa · caída · Calmar |
 |---|---|---|
-| 10 % | 14,9 % · −5,9 % · 8,7 % | 8,0 % · −4,5 % · 1,78 |
+| 10 % | 14,8 % · −5,9 % · 8,7 % | 8,0 % · −4,5 % · 1,78 |
 | 20 % | 31,9 % · −13,2 % · 18,2 % | 15,4 % · −8,6 % · 1,79 |
 | 25 % | 44,4 % · −16,7 % · 22,9 % | 23,3 % · −11,2 % · 2,08 |
 | 30 % | 59,8 % · −23,1 % · 28,6 % | 26,9 % · −13,8 % · 1,94 |
 
-Corrida A (capital grande, contratos fraccionarios): el p95 de IS del nivel 30 da 30,3 % y el del nivel 20, 20,2 %, apenas por encima del nivel que se usó al elegir los pesos (con el motor 1.2: 29,98 % y 19,9 %). No es un criterio (C2 se mide en la corrida B) y los pesos no se reescalan: están congelados (§8). Al contado: caída de cierres de 4 h. Calmar con la caída estricta en la prueba: 10 % 1,37 / 20 % 1,72 / 25 % 2,03 / 30 % 1,86 (BTC tendencia 0,44).
+Corrida A (capital grande, contratos fraccionarios): el p95 de IS del nivel 30 da 30,3 % y el del nivel 20, 20,2 %, apenas por encima del nivel que se usó al elegir los pesos (con el motor 1.2: 29,98 % y 19,9 %). No es un criterio (C2 se mide en la corrida B) y los pesos no se reescalan: están congelados (§8). Calmar con la caída estricta en la prueba: 10 % 1,37 / 20 % 1,72 / 25 % 2,03 / 30 % 1,86 (BTC tendencia 0,44).
 
 ## 5. Atribución y costos del nivel 30 en la prueba (corrida B)
 
@@ -272,8 +294,10 @@ A: la serie diaria que declaraba la 1.0 (caída de cierres diarios); el resto, c
   ventaja contra BTC tendencia en la prueba (§4). No corrige el sesgo de selección de las ideas.
 - **Benchmark al contado.** Agregado: comprar y mantener BTC y ETH al contado, sin funding (§4).
 - **E12–E14 después de abrir la prueba.** Documentadas como correcciones sin cambio de pesos (§8 del protocolo); las
-  series de cada versión del motor quedan identificadas («motor 1.2» en `resultados/`, «motor 1.3» en
-  `resultados/revalidacion/`).
+  series de cada versión del motor quedan identificadas («motor 1.2» en `resultados/motor12/` y en el commit c08d856,
+  «motor 1.3» en `resultados/revalidacion/` y en las curvas de la web). Tiene razón el informe en que las corridas A y
+  las curvas completas de la 1.2 eran anteriores a E12: todas las de la 1.3 (A, B, completas) ya usan los tramos de
+  liquidación.
 - **Custodia del holdout.** `autorizado_oos` exige ahora además la huella SHA-256 del archivo congelado, y el modo PAPEL
   del motor sólo funciona con un cargador de datos del servicio. Sigue siendo una barrera de flujo dentro del repositorio,
   no una custodia externa: las fechas de Git no prueban por sí solas cuándo se decidió algo.

@@ -1,6 +1,6 @@
 # Script de pruebas independientes de la segunda auditoría (pruebas_independientes.py del auditor), con SOLO las
-# llamadas cuya firma cambió adaptadas al código 1.3 (procesar sin funding_8h; falsos con saldos). Lo corre
-# /tmp/…/aud3 desde validacion; la evaluación de sus 9 detecciones está en pruebas_independientes_v13.json.
+# llamadas cuya firma cambió adaptadas al código 1.3 (procesar sin funding_8h; falsos con saldos). La evaluación de sus
+# 9 detecciones contra el código nuevo está en pruebas_independientes_v13.json (ver AUDITORIA3.md §1).
 import sys,json,logging,os
 from pathlib import Path
 import pandas as pd

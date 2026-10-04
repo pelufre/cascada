@@ -20,7 +20,7 @@ NIVELES = {
 # Percentil 95 de la caída máxima en 2000 remuestreos de 2020–2023 (motor completo 1.3 —enmienda E14—, 3000 USDT con
 # contratos reales, mismos pesos congelados; validacion/resultados/revalidacion/). Con el motor 1.2 eran 9,36 / 19,2 /
 # 24,23 / 29,62 %. Es la referencia que se muestra; el corte por caída se fija aparte (CORTE).
-P95_IS = {"nivel_10": 0.096, "nivel_20": 0.1954, "nivel_25": 0.2452, "nivel_30": 0.2982}
+P95_IS = {"nivel_10": 0.0961, "nivel_20": 0.1954, "nivel_25": 0.2452, "nivel_30": 0.2982}
 # Alerta y corte por defecto si nivel.yaml no los fija: corte ≈ p95 de IS (pasarlo indica que algo dejó de comportarse
 # como en el backtest), alerta = 2/3 del corte.
 CORTE = {"nivel_10": 0.10, "nivel_20": 0.20, "nivel_25": 0.25, "nivel_30": 0.30}
