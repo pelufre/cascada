@@ -99,8 +99,10 @@ class Paquete:
         return out
 
     def funding(self, hasta):
+        """Eventos de funding hasta `hasta` INCLUSIVE: el de las 00:00 del corte es el que liquida la última vela del tramo
+        (la que cierra en `hasta`). Antes se cortaba con < y las corridas de IS no cobraban ese último evento."""
         p = self.dir / "_funding_perp.csv"
-        return self._leer("_funding_perp.csv", pd.Timestamp(hasta)) if p.exists() else None
+        return self._leer("_funding_perp.csv", pd.Timestamp(hasta) + pd.Timedelta(seconds=1)) if p.exists() else None
 
     def contratos(self):
         p = self.dir / "contratos_kucoin.csv"

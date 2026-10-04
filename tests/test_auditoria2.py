@@ -632,8 +632,22 @@ def v01c_ultima_vela_valorada_y_cuentas_cerradas():
     assert abs(a["residuo_principal"]) < 1e-6 and abs(a["total"] - (r.serie.E.iat[-1] - 1000.0)) < 1e-6, a
 
 
+def v01d_funding_del_corte_entra_en_el_tramo():
+    """El evento de funding que liquida justo en el corte (00:00 del 1/1) es de la última vela del tramo: entra; el
+    siguiente no."""
+    import tempfile
+    from pathlib import Path
+    from validacion.datos import Paquete
+    d = Path(tempfile.mkdtemp())
+    pd.DataFrame({"BTC": [0.0001, 0.0002, 0.0003]},
+                 index=pd.to_datetime(["2023-12-31 16:00", "2024-01-01 00:00", "2024-01-01 08:00"], utc=True)
+                 ).rename_axis("datetime").to_csv(d / "_funding_perp.csv")
+    F = Paquete(d, verificar=False).funding(pd.Timestamp("2024-01-01"))
+    assert list(F.index.astype(str)) == ["2023-12-31 16:00:00", "2024-01-01 00:00:00"], list(F.index)
+
+
 PRUEBAS = [v01a_stop_con_salto_queda_dentro_de_la_medida, v01b_ganancia_posterior_al_stop_no_cuenta,
-           v01c_ultima_vela_valorada_y_cuentas_cerradas,
+           v01c_ultima_vela_valorada_y_cuentas_cerradas, v01d_funding_del_corte_entra_en_el_tramo,
            v04a_reinicio_con_estado_terminal_sin_aplicar, v04b_caida_entre_dos_escrituras_del_libro,
            v04c_orden_abierta_que_llena_tarde, v04d_pendiente_bloquea_aumentos,
            v05a_opuestos_desde_plano, v05b_prioridad_decide_el_lado, v05c_cambio_de_lado_en_el_mismo_ciclo,

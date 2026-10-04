@@ -201,21 +201,23 @@ tests/             defectos de las dos auditorías, servicio (red, reinicios, ve
   El motor 1.1 da exactamente los mismos días en mercado que el 1.0 y el mismo patrimonio final (±0,01 %).
 - **Servicio** (`python -m tests.test_servicio`): red que se cae antes o después de llenar una orden, reinicio a mitad
   de ciclo, velas y precios faltantes, volumen de los perpetuos, capital de 30 balas por campaña y funding del papel.
-- **Segunda auditoría** (`python -m tests.test_auditoria2`, 28 pruebas): los escenarios que reprodujo el auditor
+- **Segunda auditoría** (`python -m tests.test_auditoria2`, 29 pruebas): los escenarios que reprodujo el auditor
   (V01–V09) y sus ventanas vecinas: stops con salto y con ganancia posterior, última vela valorada y atribución que
   cierra; caída del proceso al aplicar una orden (después del estado y entre dos lotes), orden abierta que llena tarde,
   sin aumentos con una orden pendiente; dos lados sobre un símbolo plano y cambio de lado; transferencia con respuesta
   perdida (acreditada o no) y bloqueo de balas mientras quede incierta; balas real con apertura fallida, a medias o con
   respuesta perdida, patrimonio y nocional reales, órdenes sin estado terminal, cierre que no queda plano; reserva que no
   protege una vela pasada; funding de XBTUSDM por evento y después de los stops; stop con deslizamiento; costos de balas
-  conmutables.
+  conmutables; funding del instante del corte dentro del tramo.
 - **Configuración** (`python -m tests.test_config`): los pesos del servicio son exactamente los congelados.
 - **Subcuenta de 30 balas** (`python -m tests.test_subcuenta`): plan del reequilibrio (colchón de la principal,
   diferencias chicas), rutas de transferencia con alternativa y deshacer, y que nunca se toque durante una campaña.
 - **Filtro de liquidez de momentum (c40)**: mediana de 30 días del volumen diario ≥ 2 M USD, con el volumen en USDT del
   perpetuo (Binance; KuCoin si Binance no lo lista), la misma medida de la validación. La primera vez completa 35 días.
-- **Paridad de 30 balas**: 2019→2026, mismas 279 campañas y 0 liquidaciones que el backtest; patrimonio final 22,12 vs
-  22,08 (correlación diaria 0,9999).
+- **Paridad de 30 balas** (motor 1.1 contra el backtest de investigación): 2019→2026, mismas 279 campañas y 0
+  liquidaciones; patrimonio final 22,12 vs 22,08 (correlación diaria 0,9999). La 1.3 se aparta a propósito de ese
+  backtest en lo que la segunda auditoría marcó: ejecución a la apertura siguiente, funding por evento de XBTUSDM, costos
+  de la conversión USDT ↔ BTC y contratos enteros (E14).
 - **Simulación de punta a punta** sin internet: ciclos, balas, controles, comandos y todas las rutas de la web.
 - Lo que **no** se pudo probar desde acá: las llamadas reales a KuCoin (órdenes, stops, tamaños de contrato). Por eso el
   modo papel primero, `cli verificar` y `cli balas-prueba` en el servidor.

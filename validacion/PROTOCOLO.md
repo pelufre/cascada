@@ -218,7 +218,9 @@ anteriores quedan como estaban, identificadas como «motor 1.2».
      posiciones que había al empezar la vela. El funding de la vela se cobra después de los stops, con la posición que
      quedó; un evento dentro de la vela con un stop en el medio se cobra a la posición que más paga. Cada fila de la serie
      es el patrimonio en ese instante y la última fila es el cierre de la última vela del tramo (antes faltaba esa vela);
-     las métricas de un tramo incluyen la fila del final.
+     las métricas de un tramo incluyen la fila del final. El evento de funding que liquida justo en el corte (las 00:00
+     del 1/1/2024 para IS) pertenece al tramo que termina ahí (el cargador lo dejaba afuera; efecto en IS < 0,02 % del
+     patrimonio final).
   2. *30 balas (V02, V07, V09).* Lo que pasa durante la vela (funding y liquidación) se separa de la decisión. La reserva
      se decide al cierre, con el precio de ese momento, y queda puesta antes de la vela siguiente: nunca protege una vela
      que ya pasó (en el servicio se mandaba al cierre usando la apertura de la vela ya terminada). Lo decidido se ejecuta a

@@ -89,6 +89,8 @@ def revalidacion():
                 dd = x.get("dd_pesimista", x.get("dd_optimista"))
                 cal = x.get("calmar") if x.get("calmar") is not None else (x["cagr"] / abs(dd) if dd else None)
                 out.append(f"| {nombres.get(k, k)} | {pc(x['cagr'])} | {pc(dd)} | {fx(cal)} |")
+        out += ["", "Los pesos de «igual riesgo» salen de la volatilidad de IS de cada estrategia sola (corridas solas del motor "
+                "1.2, que sólo fijan esa referencia); al contado, caída de cierres de 4 h."]
     iv = {n: v.get("intervalo_ventaja_vs_btc_tendencia") for n, v in r["niveles"].items()}
     if any(isinstance(x, dict) for x in iv.values()):
         out += ["", "**Incertidumbre muestral de la ventaja contra BTC tendencia** (2000 remuestreos por bloques de los retornos "
