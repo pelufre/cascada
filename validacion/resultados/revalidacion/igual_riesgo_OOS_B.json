@@ -1,0 +1,81 @@
+{
+ "cagr": 0.20027827727970116,
+ "dd_optimista": -0.11487460964796059,
+ "dd_pesimista": -0.115811813506846,
+ "dd_estricta": -0.12143268169594901,
+ "sharpe": 1.3084268318465022,
+ "calmar": 1.7293423806705357,
+ "nocional_max": 0.715309342071684,
+ "exposicion_max": 0.8273735287622442,
+ "p95": 0.1818692092850465,
+ "por_año": {
+  "2024": 0.2792739970905098,
+  "2025": 0.16227753234280984,
+  "2026": 0.11085397276602071
+ },
+ "lotes": 292,
+ "lotes_cerrados": 285,
+ "lotes_abiertos": 7,
+ "ganadoras": 0.3508771929824561,
+ "factor_beneficio": 1.68092130657225,
+ "peor_lote": -88.96828520977195,
+ "campañas_balas": {
+  "n": 111,
+  "ganadoras": 0.4774774774774775,
+  "factor_beneficio": 2.565093002712825,
+  "peor": -68.52635187942205,
+  "liquidaciones": 0
+ },
+ "mom_saltadas": 7,
+ "atribucion": {
+  "por_estrategia": {
+   "mom_alts": 165.7267803404413,
+   "rsi2_eth": 361.73361455564435,
+   "sold_btc": 90.1771635363774,
+   "rsi2_btc": 454.46426618123905,
+   "ab_cortos": 474.5979018130763,
+   "balas5": 408.3913603630734
+  },
+  "lotes_cerrados": {
+   "mom_alts": 24.986481179652586,
+   "rsi2_eth": 194.04039776675134,
+   "sold_btc": 90.1771635363774,
+   "rsi2_btc": 298.5364537344089,
+   "ab_cortos": 474.5979018130763
+  },
+  "lotes_abiertos": {
+   "rsi2_eth": 167.693216788893,
+   "rsi2_btc": 155.92781244683016,
+   "mom_alts": 140.7402991607887
+  },
+  "funding_principal": 262.28081681705584,
+  "comisiones_principal": 71.91076075963986,
+  "transferido_a_balas": -161.02266778014433,
+  "residuo_principal": 2.0463630789890885e-11,
+  "balas": {
+   "campañas_cerradas": 408.3913603630734,
+   "campaña_abierta": 0.0,
+   "funding": 47.46479512000001,
+   "comisiones": 64.24279954297772,
+   "campañas": 111,
+   "liquidaciones": 0
+  },
+  "residuo_balas": 4.547473508864641e-13,
+  "total": 1955.0910867898517
+ },
+ "funding": 309.74561193705586,
+ "comisiones": 136.15356030261756,
+ "pesos": {
+  "ab_cortos": 0.14964243089347057,
+  "mom_alts": 0.1029494191329393,
+  "balas5": 0.1268991277829576,
+  "rsi2_btc": 0.13450138524383667,
+  "wr2": 0.0,
+  "sold_btc": 0.17772484957947116,
+  "rsi2_eth": 0.10194560286861244
+ },
+ "corrida": "B",
+ "tramo": "OOS",
+ "operable": false,
+ "segundos": 394
+}

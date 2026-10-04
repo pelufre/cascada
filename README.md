@@ -7,16 +7,16 @@ avisa por Telegram.
 
 Pesos validados **en el simulador** con metodología pre-registrada (`validacion/PROTOCOLO.md`): elegidos sólo con
 2020–2023, congelados (commit 54ddf76) y probados una vez en 2024-01 → 2026-09. 3000 USDT con contratos reales de KuCoin,
-costos y funding. Cifras del motor 1.3 (correcciones de la segunda auditoría, enmienda E14; `validacion/AUDITORIA3.md`),
-con los mismos pesos. **La ejecución con dinero real todavía no está aprobada**: faltan las pruebas reales con montos
-mínimos y el papel con la versión 1.3.
+costos y funding. Cifras del motor 1.3.1 (correcciones de la segunda auditoría, enmienda E14, `validacion/AUDITORIA3.md`;
+entrada salteada de momentum alts, E15), con los mismos pesos. **La ejecución con dinero real todavía no está aprobada**:
+faltan las pruebas reales con montos mínimos y el papel con la versión 1.3.1.
 
 | Nivel | Tasa anual 2024–sep 2026 (prueba) | Caída máx. prueba (pesimista / estricta) | Tasa 2020–23 (ajuste) | p95 de caída 2020–23 |
 |---|---|---|---|---|
 | `nivel_10` | 8,2 % | −4,5 % / −6,0 % | 16,2 % | 9,6 % |
-| `nivel_20` | 15,7 % | −8,8 % / −9,2 % | 36,5 % | 19,5 % |
+| `nivel_20` | 15,8 % | −8,8 % / −9,2 % | 36,4 % | 19,5 % |
 | `nivel_25` | 23,8 % | −11,3 % / −11,8 % | 49,6 % | 24,5 % |
-| `nivel_30` (por defecto) | 27,8 % | −14,2 % / −14,9 % | 66,7 % | 29,8 % |
+| `nivel_30` (por defecto) | 27,6 % | −14,2 % / −14,9 % | 66,7 % | 29,8 % |
 
 > El backtest no es una promesa: las cifras de referencia son las del período de prueba, no las de ajuste. Empezar
 > siempre en **modo papel** (fase 3 del plan: 8–12 semanas) y comparar cada semana el papel contra el motor
@@ -184,7 +184,7 @@ cascada/
   web.py, estatico/ web
   telegram.py      avisos y comandos
   cli.py           verificar, estado, aporte, telegram-chat, reiniciar-papel
-datos_backtest/    curvas del backtest (simulador, motor 1.3) para la web
+datos_backtest/    curvas del backtest (simulador, motor 1.3.1) para la web
 validacion/        protocolo, motor de backtest (el mismo código del servicio), selección de pesos, pesos congelados,
                    evaluación de la prueba y comparación papel ↔ motor
 tests/             defectos de las dos auditorías, servicio (red, reinicios, velas faltantes, balas, funding) y configuración
@@ -209,6 +209,10 @@ tests/             defectos de las dos auditorías, servicio (red, reinicios, ve
   respuesta perdida, patrimonio y nocional reales, órdenes sin estado terminal, cierre que no queda plano; reserva que no
   protege una vela pasada; funding de XBTUSDM por evento y después de los stops; stop con deslizamiento; costos de balas
   conmutables; funding del instante del corte dentro del tramo.
+- **Momentum alts, entrada que no se abre** (`python -m tests.test_e15`, 4 pruebas, enmienda E15): si la entrada elegida
+  no llega al contrato mínimo (u otra causa la deja sin abrir), al día siguiente su cupo queda libre y se vuelve a elegir
+  desde cero, como en la especificación de c40; un lote cerrado libera el cupo sin contar como salteado y un lote propio
+  abierto que no estaba anotado se adopta.
 - **Configuración** (`python -m tests.test_config`): los pesos del servicio son exactamente los congelados.
 - **Subcuenta de 30 balas** (`python -m tests.test_subcuenta`): plan del reequilibrio (colchón de la principal,
   diferencias chicas), rutas de transferencia con alternativa y deshacer, y que nunca se toque durante una campaña.

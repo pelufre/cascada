@@ -255,19 +255,24 @@ anteriores quedan como estaban, identificadas como «motor 1.2».
      La decisión §5.5 (30 balas 41,6 % contra BTC tendencia 35,4 % en IS) comparó dos carteras optimizadas distintas, no
      las dos estrategias solas: ganó la variante de cartera con 30 balas bajo ese proceso de búsqueda. Los niveles
      10/20/25/30 son etiquetas del proceso (p95 de la caída diaria de IS) y del corte configurado, no límites de pérdida.
-- **E15 · Momentum alts: la entrada que no se abre se saltea (corrige una diferencia con la especificación de c40;
-  2026-10-04, con el período de prueba ya abierto, antes de correr nada con el cambio).** En la especificación de c40
-  («sin efectivo suficiente, se saltea») una entrada elegida que no se puede hacer se saltea: el cupo queda libre y en la
-  decisión siguiente se vuelve a elegir desde cero. La implementación dejaba el cupo reservado para esa moneda y la volvía
-  a pedir cada día con la fracción y la distancia de stop del día de la señal, aunque hubiera dejado de calificar, hasta
-  abrirla o hasta que se apagara el filtro. Pasa cuando el lote no llega al contrato mínimo (corrida B), cuando el reparto
-  de la cascada le da 0, cuando el símbolo tiene un lote del lado opuesto (E14.3), con una orden sin resolver en el
-  símbolo y, en real, con una IOC que no llena. Corrección: en cada decisión diaria se libera el cupo de toda entrada que
-  no esté abierta (se cuentan como «saltadas»); un lote propio abierto que la estrategia no tenga anotado (en real, el
-  llenado tardío de una orden incierta) se adopta y ocupa su cupo; en el backtest esto último no ocurre. No cambia
-  ninguna otra estrategia: en cortos Aberration una entrada que no abrió se sigue pidiendo mientras su señal siga viva,
-  porque su regla de salida (cierre > SMA120) la cancela. Se vuelven a correr, con los mismos pesos congelados, los casos
-  donde momentum tiene peso: niveles 20, 25 y 30 (IS y prueba, corridas A y B, y la variante operable), pesos iguales por
-  riesgo y sin balas, y las curvas de la web de esos niveles y de momentum sola. El nivel 10 (peso 0) y las demás
-  comparaciones no cambian. Criterios como en E14.6. Los análisis de lotes, atribución y descomposición de la respuesta
-  a la segunda auditoría (`auditoria3.py`) quedan como evidencia del motor 1.3 y no se rehacen.
+
+La siguiente es de **2026-10-04, después de abrir el período de prueba**, a raíz de un repaso de las reglas de momentum
+alts, y se registró antes de correr nada con el cambio. Corrige un error de implementación; **no cambia pesos, niveles,
+reglas de las estrategias, la decisión de 30 balas ni la selección** (§8).
+
+- **E15 · Momentum alts: la entrada que no se abre se saltea (corrige una diferencia con la especificación de c40).** En
+  la especificación de c40 («sin efectivo suficiente, se saltea») una entrada elegida que no se puede hacer se saltea:
+  el cupo queda libre y en la decisión siguiente se vuelve a elegir desde cero. La implementación dejaba el cupo
+  reservado para esa moneda y la volvía a pedir cada día con la fracción y la distancia de stop del día de la señal,
+  aunque hubiera dejado de calificar, hasta abrirla o hasta que se apagara el filtro. Pasa cuando el lote no llega al
+  contrato mínimo (corrida B), cuando el reparto de la cascada le da 0, cuando el símbolo tiene un lote del lado opuesto
+  (E14.3), con una orden sin resolver en el símbolo y, en real, con una IOC que no llena. Corrección: en cada decisión
+  diaria se libera el cupo de toda entrada que no esté abierta (se cuentan como «saltadas»); un lote propio abierto que
+  la estrategia no tenga anotado (en real, el llenado tardío de una orden incierta) se adopta y ocupa su cupo; en el
+  backtest esto último no ocurre. No cambia ninguna otra estrategia: en cortos Aberration una entrada que no abrió se
+  sigue pidiendo mientras su señal siga viva, porque su regla de salida (cierre > SMA120) la cancela. Se vuelven a
+  correr, con los mismos pesos congelados, los casos donde momentum tiene peso: niveles 20, 25 y 30 (IS y prueba,
+  corridas A y B, y la variante operable), pesos iguales por riesgo y sin balas, y las curvas de la web de esos niveles
+  y de momentum sola. El nivel 10 (peso 0) y las demás comparaciones no cambian. Criterios como en E14.6. Los análisis
+  de lotes, atribución y descomposición de la respuesta a la segunda auditoría (`auditoria3.py`) quedan como evidencia
+  del motor 1.3 y no se rehacen.

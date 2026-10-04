@@ -17,10 +17,11 @@ NIVELES = {
     "nivel_25": dict(ab_cortos=0.141, mom_alts=0.0235, balas5=0.235, rsi2_btc=0.141, wr2=0.047, sold_btc=0.047, rsi2_eth=0.1175),
     "nivel_30": dict(ab_cortos=0.20925, mom_alts=0.0465, balas5=0.34875, rsi2_btc=0.06975, wr2=0.0, sold_btc=0.20925, rsi2_eth=0.11625),
 }
-# Percentil 95 de la caída máxima en 2000 remuestreos de 2020–2023 (motor completo 1.3 —enmienda E14—, 3000 USDT con
-# contratos reales, mismos pesos congelados; validacion/resultados/revalidacion/). Con el motor 1.2 eran 9,36 / 19,2 /
-# 24,23 / 29,62 %. Es la referencia que se muestra; el corte por caída se fija aparte (CORTE).
-P95_IS = {"nivel_10": 0.0961, "nivel_20": 0.1954, "nivel_25": 0.2452, "nivel_30": 0.2982}
+# Percentil 95 de la caída máxima en 2000 remuestreos de 2020–2023 (motor completo 1.3.1 —enmiendas E14 y E15—, 3000
+# USDT con contratos reales, mismos pesos congelados; validacion/resultados/revalidacion/). Con el motor 1.2 eran 9,36 /
+# 19,2 / 24,23 / 29,62 %; con el 1.3, 9,61 / 19,54 / 24,52 / 29,82 %. Es la referencia que se muestra; el corte por
+# caída se fija aparte (CORTE).
+P95_IS = {"nivel_10": 0.0961, "nivel_20": 0.1955, "nivel_25": 0.2455, "nivel_30": 0.2984}
 # Alerta y corte por defecto si nivel.yaml no los fija: corte ≈ p95 de IS (pasarlo indica que algo dejó de comportarse
 # como en el backtest), alerta = 2/3 del corte.
 CORTE = {"nivel_10": 0.10, "nivel_20": 0.20, "nivel_25": 0.25, "nivel_30": 0.30}
