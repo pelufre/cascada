@@ -141,8 +141,11 @@ class Motor:
         reduce = neto < 0
         lado = "buy" if (neto > 0) == (lado_pos > 0) else "sell"
         oid = _oid(sim, t, uuid.uuid4().hex)
-        self.db.ejec("INSERT INTO ordenes (client_oid,ts,simbolo,lado,contratos,reduce,estado,plan) VALUES (?,?,?,?,?,?,?,?)",
-                     (oid, _ms(t), sim, lado, abs(neto), int(reduce), "enviando", json.dumps(plan)))
+        # ts = cierre de la vela que decidió; enviada_ms = momento real del envío (latencia) y precio_ref = precio usado
+        self.db.ejec("INSERT INTO ordenes (client_oid,ts,simbolo,lado,contratos,reduce,estado,plan,enviada_ms,precio_ref)"
+                     " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (oid, _ms(t), sim, lado, abs(neto), int(reduce), "enviando", json.dumps(plan),
+                      int(time.time() * 1000), px))
         try:
             r = self.bolsa.enviar_orden(sim, lado, abs(neto), reduce, oid, None if reduce else px)
         except Exception as ex:

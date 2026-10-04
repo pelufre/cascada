@@ -1,0 +1,76 @@
+{
+ "cagr": 0.16212134160663738,
+ "dd_optimista": -0.05269083004923414,
+ "dd_pesimista": -0.06727376164585208,
+ "dd_estricta": -0.06842896089113204,
+ "sharpe": 1.8270584768644618,
+ "calmar": 2.4098747809003087,
+ "nocional_max": 0.27712256708566485,
+ "exposicion_max": 0.32860674529238226,
+ "p95": 0.09601938250355355,
+ "por_año": {
+  "2020": 0.23423734980040956,
+  "2021": 0.23117960604837196,
+  "2022": 0.07618719178640432,
+  "2023": 0.11531614906352328
+ },
+ "lotes": 155,
+ "lotes_cerrados": 153,
+ "lotes_abiertos": 2,
+ "ganadoras": 0.49673202614379086,
+ "factor_beneficio": 3.4235851232043824,
+ "peor_lote": -32.65307096191998,
+ "campañas_balas": {
+  "n": 154,
+  "ganadoras": 0.43506493506493504,
+  "factor_beneficio": 3.734606207896397,
+  "peor": -22.953513323877157,
+  "liquidaciones": 0
+ },
+ "atribucion": {
+  "por_estrategia": {
+   "rsi2_btc": 730.1193043078001,
+   "rsi2_eth": 849.9769588916021,
+   "ab_cortos": 388.11456187137566,
+   "balas5": 503.55070719971206
+  },
+  "lotes_cerrados": {
+   "rsi2_btc": 584.6357235785201,
+   "rsi2_eth": 754.5456135548401,
+   "ab_cortos": 388.11456187137566
+  },
+  "lotes_abiertos": {
+   "rsi2_btc": 145.48358072928005,
+   "rsi2_eth": 95.43134533676199
+  },
+  "funding_principal": 384.358282140296,
+  "comisiones_principal": 44.530983503931,
+  "transferido_a_balas": -383.4627100183437,
+  "residuo_principal": -1.9554136088117957e-11,
+  "balas": {
+   "campañas_cerradas": 504.2104309589033,
+   "campaña_abierta": -0.6597237591912517,
+   "funding": 38.399853000000014,
+   "comisiones": 37.23155546817015,
+   "campañas": 155,
+   "liquidaciones": 0
+  },
+  "residuo_balas": 1.1368683772161603e-13,
+  "total": 2471.76153227049
+ },
+ "funding": 422.758135140296,
+ "comisiones": 81.76253897210114,
+ "pesos": {
+  "ab_cortos": 0.07275000000000001,
+  "mom_alts": 0.0,
+  "balas5": 0.0485,
+  "rsi2_btc": 0.07275000000000001,
+  "wr2": 0.0,
+  "sold_btc": 0.0,
+  "rsi2_eth": 0.07275000000000001
+ },
+ "corrida": "B",
+ "tramo": "IS",
+ "operable": false,
+ "segundos": 386
+}

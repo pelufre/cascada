@@ -5,15 +5,18 @@ el capital con prioridades (cortos Aberration, momentum alts c40, 30 balas 5x, R
 RSI(2) ETH). Decide cada 4 horas al cierre de vela, controla el riesgo cada 15 minutos, muestra todo en una web y
 avisa por Telegram.
 
-Pesos validados con metodología pre-registrada (`validacion/PROTOCOLO.md`): elegidos sólo con 2020–2023, congelados
-(commit 54ddf76) y probados una vez en 2024-01 → 2026-09. 3000 USDT con contratos reales de KuCoin, costos y funding.
+Pesos validados **en el simulador** con metodología pre-registrada (`validacion/PROTOCOLO.md`): elegidos sólo con
+2020–2023, congelados (commit 54ddf76) y probados una vez en 2024-01 → 2026-09. 3000 USDT con contratos reales de KuCoin,
+costos y funding. Cifras del motor 1.3 (correcciones de la segunda auditoría, enmienda E14; `validacion/AUDITORIA3.md`),
+con los mismos pesos. **La ejecución con dinero real todavía no está aprobada**: faltan las pruebas reales con montos
+mínimos y el papel con la versión 1.3.
 
-| Nivel | Tasa anual 2024–sep 2026 (prueba) | Caída máx. (prueba) | Tasa 2020–23 (ajuste) | p95 de caída 2020–23 |
+| Nivel | Tasa anual 2024–sep 2026 (prueba) | Caída máx. prueba (pesimista / estricta) | Tasa 2020–23 (ajuste) | p95 de caída 2020–23 |
 |---|---|---|---|---|
-| `nivel_10` | 8,4 % | −4,4 % | 16,5 % | 9,4 % |
-| `nivel_20` | 16,3 % | −9,0 % | 37,4 % | 19,2 % |
-| `nivel_25` | 24,5 % | −11,3 % | 50,6 % | 24,2 % |
-| `nivel_30` (por defecto) | 28,7 % | −14,0 % | 68,6 % | 29,6 % |
+| `nivel_10` | 8,2 % | −4,5 % / −6,0 % | 16,2 % | 9,6 % |
+| `nivel_20` | 15,7 % | −8,8 % / −9,2 % | 36,5 % | 19,5 % |
+| `nivel_25` | 23,8 % | −11,3 % / −11,8 % | 49,6 % | 24,5 % |
+| `nivel_30` (por defecto) | 27,8 % | −14,2 % / −14,9 % | 66,7 % | 29,8 % |
 
 > El backtest no es una promesa: las cifras de referencia son las del período de prueba, no las de ajuste. Empezar
 > siempre en **modo papel** (fase 3 del plan: 8–12 semanas) y comparar cada semana el papel contra el motor
@@ -181,10 +184,10 @@ cascada/
   web.py, estatico/ web
   telegram.py      avisos y comandos
   cli.py           verificar, estado, aporte, telegram-chat, reiniciar-papel
-datos_backtest/    curvas del backtest validado para la web
+datos_backtest/    curvas del backtest (simulador, motor 1.3) para la web
 validacion/        protocolo, motor de backtest (el mismo código del servicio), selección de pesos, pesos congelados,
                    evaluación de la prueba y comparación papel ↔ motor
-tests/             defectos de la auditoría, servicio (red, reinicios, velas faltantes, balas, funding) y configuración
+tests/             defectos de las dos auditorías, servicio (red, reinicios, velas faltantes, balas, funding) y configuración
 ```
 
 ## Pruebas hechas
@@ -198,6 +201,14 @@ tests/             defectos de la auditoría, servicio (red, reinicios, velas fa
   El motor 1.1 da exactamente los mismos días en mercado que el 1.0 y el mismo patrimonio final (±0,01 %).
 - **Servicio** (`python -m tests.test_servicio`): red que se cae antes o después de llenar una orden, reinicio a mitad
   de ciclo, velas y precios faltantes, volumen de los perpetuos, capital de 30 balas por campaña y funding del papel.
+- **Segunda auditoría** (`python -m tests.test_auditoria2`, 28 pruebas): los escenarios que reprodujo el auditor
+  (V01–V09) y sus ventanas vecinas: stops con salto y con ganancia posterior, última vela valorada y atribución que
+  cierra; caída del proceso al aplicar una orden (después del estado y entre dos lotes), orden abierta que llena tarde,
+  sin aumentos con una orden pendiente; dos lados sobre un símbolo plano y cambio de lado; transferencia con respuesta
+  perdida (acreditada o no) y bloqueo de balas mientras quede incierta; balas real con apertura fallida, a medias o con
+  respuesta perdida, patrimonio y nocional reales, órdenes sin estado terminal, cierre que no queda plano; reserva que no
+  protege una vela pasada; funding de XBTUSDM por evento y después de los stops; stop con deslizamiento; costos de balas
+  conmutables.
 - **Configuración** (`python -m tests.test_config`): los pesos del servicio son exactamente los congelados.
 - **Subcuenta de 30 balas** (`python -m tests.test_subcuenta`): plan del reequilibrio (colchón de la principal,
   diferencias chicas), rutas de transferencia con alternativa y deshacer, y que nunca se toque durante una campaña.

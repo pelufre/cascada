@@ -1,0 +1,76 @@
+{
+ "cagr": 0.1690710865191425,
+ "dd_optimista": -0.054066089275729645,
+ "dd_pesimista": -0.06773329909371917,
+ "dd_estricta": -0.06890765151266265,
+ "sharpe": 1.8349956909160337,
+ "calmar": 2.4961295076622108,
+ "nocional_max": 0.28406988811346146,
+ "exposicion_max": 0.3356945733947182,
+ "p95": 0.09909547029458315,
+ "por_año": {
+  "2020": 0.24674243543767616,
+  "2021": 0.2451376337320006,
+  "2022": 0.07718474287428867,
+  "2023": 0.1170674152773552
+ },
+ "lotes": 158,
+ "lotes_cerrados": 156,
+ "lotes_abiertos": 2,
+ "ganadoras": 0.4935897435897436,
+ "factor_beneficio": 3.317011592465288,
+ "peor_lote": -1170.274546333002,
+ "campañas_balas": {
+  "n": 154,
+  "ganadoras": 0.43506493506493504,
+  "factor_beneficio": 3.738551023369272,
+  "peor": -791.993918286396,
+  "liquidaciones": 0
+ },
+ "atribucion": {
+  "por_estrategia": {
+   "rsi2_btc": 26992.39567627402,
+   "rsi2_eth": 28693.344767165352,
+   "ab_cortos": 13730.621008192064,
+   "balas5": 17377.963928664336
+  },
+  "lotes_cerrados": {
+   "rsi2_btc": 21720.226631213354,
+   "rsi2_eth": 25502.739267457957,
+   "ab_cortos": 13730.621008192064
+  },
+  "lotes_abiertos": {
+   "rsi2_btc": 5272.169045060665,
+   "rsi2_eth": 3190.605499707394
+  },
+  "funding_principal": 13674.251431920235,
+  "comisiones_principal": 1479.8440641128602,
+  "transferido_a_balas": -13161.188635516542,
+  "residuo_principal": -5.966285243630409e-10,
+  "balas": {
+   "campañas_cerradas": 17400.62087812015,
+   "campaña_abierta": -22.656949455813447,
+   "funding": 1341.618156503598,
+   "comisiones": 1279.4480828097157,
+   "campañas": 155,
+   "liquidaciones": 0
+  },
+  "residuo_balas": 0.0,
+  "total": 86794.32538029578
+ },
+ "funding": 15015.869588423833,
+ "comisiones": 2759.2921469225757,
+ "pesos": {
+  "ab_cortos": 0.07275000000000001,
+  "mom_alts": 0.0,
+  "balas5": 0.0485,
+  "rsi2_btc": 0.07275000000000001,
+  "wr2": 0.0,
+  "sold_btc": 0.0,
+  "rsi2_eth": 0.07275000000000001
+ },
+ "corrida": "A",
+ "tramo": "IS",
+ "operable": false,
+ "segundos": 360
+}

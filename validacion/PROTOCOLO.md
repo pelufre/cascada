@@ -203,3 +203,53 @@ cambia pesos, niveles, reglas ni la decisión de 30 balas (§8).
   cada vela contra el máximo de los cierres anteriores. Se agrega una tercera, estricta: pico en el mejor punto de cada
   vela (incluida la misma vela, suponiendo que el máximo vino antes que el mínimo). Es una medida de informe; los
   criterios se vuelven a mirar con ella en `AUDITORIA2.md` y los cuatro niveles siguen cumpliendo C2.
+
+La siguiente es de **2026-10-03, después de abrir el período de prueba**, a raíz de la segunda auditoría
+(`AUDITORIA3.md`). Corrige errores de implementación y de medición; **no cambia pesos, niveles, reglas de las
+estrategias, la decisión de 30 balas ni la selección** (§8). Con el motor corregido se vuelven a correr IS y la prueba con
+los pesos congelados de 54ddf76 (`validacion/revalidar.py`, resultados en `resultados/revalidacion/`); las series
+anteriores quedan como estaban, identificadas como «motor 1.2».
+
+- **E14 · Motor 1.3 (corrige errores de implementación encontrados por la segunda auditoría).**
+  1. *Orden dentro de cada vela (V01).* Antes de valorar una vela se procesan sus stops; el stop es una orden a mercado
+     y llena con el mismo deslizamiento que las demás (antes llenaba sin deslizamiento). Una posición que salió por stop
+     se valora a su llenado real (la apertura si la vela abrió más allá), no al cierre; esto reemplaza a E6, que topaba el
+     peor punto en el nivel del stop aunque la vela hubiera abierto más allá. El mejor punto (caída estricta, E13) usa las
+     posiciones que había al empezar la vela. El funding de la vela se cobra después de los stops, con la posición que
+     quedó; un evento dentro de la vela con un stop en el medio se cobra a la posición que más paga. Cada fila de la serie
+     es el patrimonio en ese instante y la última fila es el cierre de la última vela del tramo (antes faltaba esa vela);
+     las métricas de un tramo incluyen la fila del final.
+  2. *30 balas (V02, V07, V09).* Lo que pasa durante la vela (funding y liquidación) se separa de la decisión. La reserva
+     se decide al cierre, con el precio de ese momento, y queda puesta antes de la vela siguiente: nunca protege una vela
+     que ya pasó (en el servicio se mandaba al cierre usando la apertura de la vela ya terminada). Lo decidido se ejecuta a
+     la apertura de la vela siguiente, como en la cuenta principal (antes, al cierre). El funding es el de XBTUSDM por
+     evento, con la posición de ese momento (reemplaza el reparto por vela de E7); donde el archivo no llega (después de
+     su último evento) se usan los eventos del perpetuo BTCUSDT; sin datos no se inventa una tasa. Se agregan los costos
+     de comprar y vender el BTC del margen en spot (comisión 0,1 % y deslizamiento) y, en la corrida B, contratos enteros
+     de 1 USD. «Sin costos / sin funding» apaga también los de 30 balas (diagnóstico).
+  3. *Cuenta principal (V04, V05).* Aplicación atómica de cada orden al libro, recuperación de órdenes no aplicadas en
+     cualquier estado y un solo lado por símbolo cuando entran pedidos de los dos lados sobre un símbolo plano (manda la
+     prioridad; antes se mandaba la suma con el lado del primero). En el backtest sólo cambia algo si esa situación ocurrió.
+  4. *Medición e informe (V08, V09).* Se informan el nocional de futuros total (principal + 30 balas) y la exposición
+     económica (con el BTC del margen de 30 balas) sobre el patrimonio; el tope de §4 no cambia: limita el nocional de
+     futuros, sólo recorta la cuenta principal y tiene una holgura de 5 % (recorta por encima de 1,05× para no operar con
+     cada movimiento de precio); no es un límite de exposición económica ni de pérdida. La atribución por estrategia
+     incluye las campañas de 30 balas y el funding de cada lote, y cierra con el patrimonio (residuo informado).
+  5. *Custodia del período de prueba (§6).* `autorizado_oos` exige además la huella SHA-256 del archivo congelado
+     (5da5dcd4…); el modo PAPEL del motor sólo funciona con un cargador de datos del servicio, no con el paquete.
+  6. *Criterios.* Se aplican igual que en §7 sobre la corrida B del motor corregido: C2 contra el p95 de IS recalculado
+     con el mismo motor, método y pesos; se informa también contra el p95 congelado y con la caída estricta. Si alguno
+     falla, rige §7: esta configuración no pasa a dinero real.
+  7. *Informativo (no decide).* Variante «operable en KuCoin» (sólo símbolos con contrato USDT-M del mismo ticker y desde
+     su fecha de apertura en KuCoin; corrige el supuesto de E5, que trataba como deslistados símbolos que KuCoin nunca
+     tuvo), comprar y mantener BTC/ETH al contado, intervalo de la ventaja contra BTC tendencia por remuestreo, análisis de
+     la base XBTUSDM ↔ BTCUSDT y colas del funding (`analisis_v10.py`).
+  8. *Precisiones de lectura (no cambian reglas).* ab_cortos, rsi2_btc y rsi2_eth no tienen stop de pérdida por lote:
+     salen por su regla (SMA / régimen, EMA300) o por el corte general, que no garantiza un precio. En wr2 la «volatilidad
+     objetivo 40 %» fija el tamaño al entrar y no se reajusta durante la posición: no es una volatilidad conseguida. En
+     Soldados el riesgo de 1 % por lote es del presupuesto de la estrategia (peso × asignación), no del patrimonio total,
+     y el «breakeven» se decide al cierre de la vela de 4 h (no es costo cero con comisiones, funding y deslizamiento).
+     En 30 balas «5x» es el apalancamiento del mecanismo dentro de cada campaña, no una exposición fija de la cartera.
+     La decisión §5.5 (30 balas 41,6 % contra BTC tendencia 35,4 % en IS) comparó dos carteras optimizadas distintas, no
+     las dos estrategias solas: ganó la variante de cartera con 30 balas bajo ese proceso de búsqueda. Los niveles
+     10/20/25/30 son etiquetas del proceso (p95 de la caída diaria de IS) y del corte configurado, no límites de pérdida.

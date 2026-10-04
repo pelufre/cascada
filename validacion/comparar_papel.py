@@ -5,7 +5,8 @@ por evento (entradas, salidas, cantidades, precios) y de patrimonio.
 En el servidor (lee una copia de la base del servicio hecha con el backup de SQLite, sin tocarla):
     docker compose exec cascada python -m validacion.comparar_papel [--desde 2026-10-05] [--hasta …] [--sin_funding]
 
-Sale con código 0 si no hay diferencias fuera de tolerancia; 1 si las hay (para correrlo programado).
+Sale con código 0 si no hay diferencias fuera de tolerancia (eventos y patrimonio); 1 si las hay (para correrlo
+programado). El funding de la principal es el de cada perpetuo y el de 30 balas el de XBTUSDM, los dos leídos de KuCoin.
 """
 import argparse
 import dataclasses
@@ -25,6 +26,7 @@ from .motor_bt import Corrida
 H4 = pd.Timedelta(hours=4)
 TOL_CONTRATOS = 0.02      # diferencia relativa de cantidad tolerada (redondeos de contrato)
 TOL_PRECIO = 0.005        # 0,5 %: el papel llena al precio del momento, el motor a la apertura de la vela
+TOL_PATRIMONIO = 0.005    # 0,5 %: divergencia máxima de patrimonio tolerada en cualquier cierre de 4 h
 
 
 def _ms(t):
@@ -60,15 +62,34 @@ def cargador(cx, desde, hasta, funding):
     return cargar
 
 
+def _historia(pub, base, desde, hasta, simbolo=None):
+    """Eventos de funding liquidados entre desde y hasta (pagina de a 20)."""
+    out, d = {}, _ms(desde) - 1
+    for _ in range(200):
+        r = pub.funding_liquidado(base, d, simbolo=simbolo) or []
+        r = [(ts, tasa) for ts, tasa in r if ts <= _ms(hasta)]
+        if not r:
+            break
+        out.update({pd.to_datetime(ts, unit="ms"): tasa for ts, tasa in r})
+        if max(ts for ts, _ in r) <= d:
+            break
+        d = max(ts for ts, _ in r)
+    return out
+
+
 def funding_kucoin(simbolos, desde, hasta):
     """Funding liquidado de KuCoin por símbolo (lo que aplicó el papel). Necesita internet."""
     from cascada.bolsa import Publico
-    pub = Publico(); filas = {}
-    for b in simbolos:
-        r = pub.funding_liquidado(b, _ms(desde) - 1) or []
-        filas[b] = {pd.to_datetime(ts, unit="ms"): tasa for ts, tasa in r if ts <= _ms(hasta)}
-    F = pd.DataFrame(filas).sort_index()
+    pub = Publico()
+    F = pd.DataFrame({b: _historia(pub, b, desde, hasta) for b in simbolos}).sort_index()
     return F if len(F) else None
+
+
+def funding_xbt_kucoin(desde, hasta):
+    """Funding liquidado de XBTUSDM (30 balas). Necesita internet."""
+    from cascada.bolsa import INVERSO, Publico
+    s = pd.Series(_historia(Publico(), "BTC", desde, hasta, simbolo=INVERSO), dtype=float).sort_index()
+    return s if len(s) else None
 
 
 def eventos(filas):
@@ -115,11 +136,13 @@ def main(a):
         merc = {b: dict(tam=float(r.tam), minimo=float(r.minimo or 1), id=r.id) for b, r in k.iterrows() if r.tam == r.tam}
     else:
         merc = Publico().mercados()
-    F = None
+    F = X = None
     if not a.sin_funding:
         F = funding_kucoin(sorted({o["simbolo"] for o in ops_p if o["cuenta"] == "principal"}), desde, hasta)
+        X = funding_xbt_kucoin(desde, hasta)
     r = Corrida(None, None, None, None, cfg.pesos, modo="PAPEL", corrida="B", capital=cfg.capital_papel, desde=desde,
-                hasta=hasta, log_cada=0, cargar=cargador(cx, desde, hasta, F), mercados=merc, cfg=cfg).correr()
+                hasta=hasta, log_cada=0, cargar=cargador(cx, desde, hasta, F), mercados=merc, cfg=cfg, funding_xbt=X,
+                sin_funding=a.sin_funding).correr()
     ops_m = r.db.filas("SELECT * FROM operaciones WHERE ts>=? AND ts<?", (_ms(desde), _ms(hasta)))
     u = emparejar(eventos(ops_p), eventos(ops_m))
     mal = u[u.problema != ""]
@@ -136,12 +159,15 @@ def main(a):
         print("\nDiferencias:")
         print(mal[["t", "cuenta", "estrategia", "simbolo", "lado", "contratos_papel", "contratos_motor", "precio_papel",
                    "precio_motor", "problema"]].to_string(index=False))
+    pat_ok = not len(dif_E) or float(dif_E.abs().max()) <= TOL_PATRIMONIO
+    if not pat_ok:
+        print(f"\nPatrimonio fuera de tolerancia ({TOL_PATRIMONIO:.1%}): diferencia máxima {dif_E.abs().max():.2%}")
     if a.salida:
         out = dict(desde=str(desde), hasta=str(hasta), eventos=len(u), diferencias=len(mal),
-                   patrimonio_dif_max=float(dif_E.abs().max()) if len(dif_E) else None,
+                   patrimonio_dif_max=float(dif_E.abs().max()) if len(dif_E) else None, patrimonio_ok=pat_ok,
                    detalle=json.loads(mal.to_json(orient="records", date_format="iso")))
         Path(a.salida).write_text(json.dumps(out, indent=1, ensure_ascii=False))
-    sys.exit(1 if len(mal) else 0)
+    sys.exit(1 if len(mal) or not pat_ok else 0)
 
 
 if __name__ == "__main__":

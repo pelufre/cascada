@@ -1,0 +1,75 @@
+{
+ "cagr": 0.08244284889968445,
+ "dd_optimista": -0.04462593330067943,
+ "dd_pesimista": -0.04500070115194821,
+ "dd_estricta": -0.06016645999152537,
+ "sharpe": 1.4084184338880985,
+ "calmar": 1.8320347636653493,
+ "nocional_max": 0.24419005957833392,
+ "exposicion_max": 0.29034086953612426,
+ "p95": 0.07045126281549731,
+ "por_año": {
+  "2024": 0.09051575946459933,
+  "2025": 0.08309853495787678,
+  "2026": 0.05262227937769226
+ },
+ "lotes": 133,
+ "lotes_cerrados": 131,
+ "lotes_abiertos": 2,
+ "ganadoras": 0.42748091603053434,
+ "factor_beneficio": 1.8251407790511731,
+ "peor_lote": -48.90093885840497,
+ "campañas_balas": {
+  "n": 111,
+  "ganadoras": 0.4864864864864865,
+  "factor_beneficio": 2.6156426600369778,
+  "peor": -23.453550292095176,
+  "liquidaciones": 0
+ },
+ "atribucion": {
+  "por_estrategia": {
+   "rsi2_eth": 221.75209959046686,
+   "rsi2_btc": 181.38626035036475,
+   "ab_cortos": 189.82220662240107,
+   "balas5": 136.90970681793476
+  },
+  "lotes_cerrados": {
+   "rsi2_eth": 129.44047198402885,
+   "rsi2_btc": 121.52036533113376,
+   "ab_cortos": 189.82220662240107
+  },
+  "lotes_abiertos": {
+   "rsi2_eth": 92.31162760643802,
+   "rsi2_btc": 59.865895019231
+  },
+  "funding_principal": 84.54539649770986,
+  "comisiones_principal": 24.994543909059598,
+  "transferido_a_balas": -101.59067920894995,
+  "residuo_principal": -3.467448550509289e-11,
+  "balas": {
+   "campañas_cerradas": 136.90970681793476,
+   "campaña_abierta": 0.0,
+   "funding": 15.908381649999983,
+   "comisiones": 20.873639767442164,
+   "campañas": 111,
+   "liquidaciones": 0
+  },
+  "residuo_balas": 1.1368683772161603e-13,
+  "total": 729.8702733811674
+ },
+ "funding": 100.45377814770984,
+ "comisiones": 45.86818367650176,
+ "pesos": {
+  "ab_cortos": 0.07275000000000001,
+  "mom_alts": 0.0,
+  "balas5": 0.0485,
+  "rsi2_btc": 0.07275000000000001,
+  "wr2": 0.0,
+  "sold_btc": 0.0,
+  "rsi2_eth": 0.07275000000000001
+ },
+ "corrida": "B",
+ "tramo": "OOS",
+ "operable": false,
+ "segundos": 304
+}

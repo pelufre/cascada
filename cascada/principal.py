@@ -155,7 +155,7 @@ class Sistema:
             self.bolsa.fijar_precios(precios)
             antes = {b: p["c"] for b, p in self.bolsa.st["pos"].items()}
             self.bolsa.revisar_stops({k: v[:3] for k, v in velas.items()})
-            self.funding_papel(t, antes)
+            self.funding_papel(t, antes, {b: v[3] for b, v in velas.items()})
         # 30 balas (subcuenta) con la vela de BTC: la vela cerrada, el capital entre campañas y la decisión
         if self.balas:
             if "BTC" in velas:
@@ -248,7 +248,7 @@ class Sistema:
             if db.incidencia("alta", "transferencia_balas", f"No pude igualar el capital de 30 balas: {e}"[:300]):
                 self.avisar("alta", f"No pude igualar el capital de 30 balas con la subcuenta: {e}"[:400])
 
-    def funding_papel(self, t, antes=None):
+    def funding_papel(self, t, antes=None, cierres=None):
         """Cobra o paga en papel el funding liquidado de cada posición (cada 8 h en KuCoin, o lo que diga el contrato),
         evento por evento con la posición de ese momento: los stops de la vela ya se procesaron y `antes` es la posición
         al empezar la vela. Marca por símbolo: el último evento visto (un evento publicado con demora no se pierde)."""
@@ -266,7 +266,8 @@ class Sistema:
                 marcas[b] = desde
                 continue
             ev = [(pd.to_datetime(ts, unit="ms"), r) for ts, r in tasas if ts <= hasta]
-            pagado += sum(self.bolsa.funding_vela(t, {b: ev}, antes, {b: self.bolsa.st["ultimo"].get(b)}).values())
+            px = (cierres or {}).get(b) or self.bolsa.st["ultimo"].get(b)
+            pagado += sum(self.bolsa.funding_vela(t, {b: ev}, antes, {b: px}).values())
             marcas[b] = max([desde] + [ts for ts, r in tasas if ts <= hasta])
         self.db.set("funding_papel_marcas", marcas)
         self.db.set("funding_papel_total", (self.db.get("funding_papel_total") or 0.0) + pagado)

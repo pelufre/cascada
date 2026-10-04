@@ -1,4 +1,4 @@
-"""Series del tablero web (datos_backtest/) con el motor validado y los pesos congelados.
+"""Series del tablero web (datos_backtest/) con el motor 1.3 (E14) y los pesos congelados.
 
 Corre de corrido 2020-01-01 → 2026-09-30 cada nivel congelado (corrida B: 3000 USDT con contratos reales) y cada
 estrategia sola (corrida A, peso 1). Sólo usa pesos congelados en 54ddf76, así que no elige nada (protocolo §8).
@@ -15,7 +15,7 @@ import pandas as pd
 
 from .correr_is import funding_xbt
 from .datos import CONGELADO, CORTE_IS, FIN_OOS, INICIO_IS, Paquete, limite
-from .motor_bt import Corrida, metricas
+from .motor_bt import Corrida, metricas, por_año
 
 RAIZ = Path(__file__).resolve().parent
 RES = RAIZ / "resultados"
@@ -35,18 +35,17 @@ def _correr(args):
 
 def resumen(serie):
     m = metricas(serie)
-    e = serie.E.resample("YE").last()
-    e0 = np.r_[serie.E.iat[0], e.values[:-1]]
-    is_ = metricas(serie[serie.index < CORTE_IS]); oos = metricas(serie[serie.index >= CORTE_IS])
-    return dict(cagr=m["cagr"], dd_diaria=m["dd_optimista"], dd_intrabarra=m["dd_pesimista"], sharpe=m["sharpe"],
-                anual={str(i.year): float(v / v0 - 1) for i, v, v0 in zip(e.index, e.values, e0)},
-                cagr_is=is_["cagr"], dd_is=is_["dd_pesimista"], cagr_oos=oos["cagr"], dd_oos=oos["dd_pesimista"])
+    is_ = metricas(serie, hasta=CORTE_IS); oos = metricas(serie, desde=CORTE_IS)
+    return dict(cagr=m["cagr"], dd_diaria=m["dd_optimista"], dd_intrabarra=m["dd_pesimista"], dd_estricta=m["dd_estricta"],
+                sharpe=m["sharpe"], anual=por_año(serie), cagr_is=is_["cagr"], dd_is=is_["dd_pesimista"],
+                cagr_oos=oos["cagr"], dd_oos=oos["dd_pesimista"], nocional_max=m.get("nocional_max"),
+                exposicion_max=m.get("exposicion_max"))
 
 
 def main(a):
     limite("OOS")
     cong = json.loads(CONGELADO.read_text())
-    trabajos = [(f"nivel_{n}", w, "B", a) for n, w in cong["pesos_por_nivel"].items()]
+    trabajos = [(f"nivel_{n}", w, "B", a) for n, w in sorted(cong["pesos_por_nivel"].items(), key=lambda x: -int(x[0]))]
     trabajos += [(f"sola_{k}", {k: 1.0}, "A", a) for k in ESTRATEGIAS]
     if not a.solo_exportar:
         with ProcessPoolExecutor(a.procesos) as ex:
@@ -60,7 +59,7 @@ def main(a):
     S = pd.DataFrame({k: dia(s) / s.E.iat[0] for k, s in sol.items()}); S.index.name = "fecha"
     N.round(6).to_csv(WEB / "cascada_niveles.csv"); S.round(6).to_csv(WEB / "estrategias.csv")
     out = {k: resumen(s) for k, s in niv.items()}
-    out["_info"] = dict(fuente="validacion/series_web.py, motor validado, pesos congelados 54ddf76",
+    out["_info"] = dict(fuente="validacion/series_web.py, motor 1.3 (enmienda E14), pesos congelados 54ddf76",
                         ajuste="2020-01-01 → 2023-12-31", prueba="2024-01-01 → 2026-09-30", corrida="B (3000 USDT)")
     (WEB / "resumen.json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     for k, v in out.items():

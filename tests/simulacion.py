@@ -14,8 +14,18 @@ from tests.paridad import PublicoFalso, cargar_datos
 class Pub(PublicoFalso):
     def velas(self, base, tf, desde, hasta=None):
         return pd.DataFrame(columns=["o", "h", "l", "c", "v"])
-    def funding(self, base):
+    def funding(self, base, simbolo=None):
         return 0.0001
+
+    def funding_liquidado(self, base, desde_ms, simbolo=None):
+        """Un evento de 0,01 % cada 8 h (perpetuos y XBTUSDM), como lo devuelve KuCoin: (ts_ms, tasa)."""
+        hasta = int(self.t.value // 10**6) if self.t is not None else desde_ms
+        paso = 8 * 3600_000
+        ts = (desde_ms // paso + 1) * paso
+        out = []
+        while ts <= hasta:
+            out.append((ts, 0.0001)); ts += paso
+        return out[:20]
 
 
 def main(a):

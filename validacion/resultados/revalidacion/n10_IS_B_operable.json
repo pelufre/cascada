@@ -1,0 +1,76 @@
+{
+ "cagr": 0.14850143223145107,
+ "dd_optimista": -0.05185022948774587,
+ "dd_pesimista": -0.0586816712261663,
+ "dd_estricta": -0.06013796379594405,
+ "sharpe": 1.7724665799261254,
+ "calmar": 2.530627181000154,
+ "nocional_max": 0.28069601378907766,
+ "exposicion_max": 0.33217731630654873,
+ "p95": 0.08716124835365864,
+ "por_año": {
+  "2020": 0.1720388929623129,
+  "2021": 0.243100921419793,
+  "2022": 0.06817566479740922,
+  "2023": 0.11798267348727887
+ },
+ "lotes": 141,
+ "lotes_cerrados": 139,
+ "lotes_abiertos": 2,
+ "ganadoras": 0.49640287769784175,
+ "factor_beneficio": 3.2542540395675963,
+ "peor_lote": -32.65307096191998,
+ "campañas_balas": {
+  "n": 154,
+  "ganadoras": 0.43506493506493504,
+  "factor_beneficio": 3.7342734204531802,
+  "peor": -22.032517597654103,
+  "liquidaciones": 0
+ },
+ "atribucion": {
+  "por_estrategia": {
+   "rsi2_btc": 673.8988719606746,
+   "rsi2_eth": 651.5981366952868,
+   "ab_cortos": 413.6944941316952,
+   "balas5": 480.5310487418727
+  },
+  "lotes_cerrados": {
+   "rsi2_btc": 531.7606981237706,
+   "rsi2_eth": 560.0028019680368,
+   "ab_cortos": 413.6944941316952
+  },
+  "lotes_abiertos": {
+   "rsi2_btc": 142.138173836904,
+   "rsi2_eth": 91.59533472724999
+  },
+  "funding_principal": 322.13900836228237,
+  "comisiones_principal": 41.544967220063995,
+  "transferido_a_balas": -372.7384310233198,
+  "residuo_principal": 6.821210263296962e-12,
+  "balas": {
+   "campañas_cerradas": 481.1606201935644,
+   "campaña_abierta": -0.629571451691703,
+   "funding": 36.62669599999998,
+   "comisiones": 35.395525792413444,
+   "campañas": 155,
+   "liquidaciones": 0
+  },
+  "residuo_balas": -1.0800249583553523e-12,
+  "total": 2219.7225515295295
+ },
+ "funding": 358.76570436228235,
+ "comisiones": 76.94049301247745,
+ "pesos": {
+  "ab_cortos": 0.07275000000000001,
+  "mom_alts": 0.0,
+  "balas5": 0.0485,
+  "rsi2_btc": 0.07275000000000001,
+  "wr2": 0.0,
+  "sold_btc": 0.0,
+  "rsi2_eth": 0.07275000000000001
+ },
+ "corrida": "B",
+ "tramo": "IS",
+ "operable": true,
+ "segundos": 320
+}

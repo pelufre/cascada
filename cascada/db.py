@@ -63,7 +63,8 @@ class Base:
         for tabla, nuevas in (("lotes", (("comision", "REAL"), ("stop_contratos", "REAL"))),
                               # lo ya aplicado al libro de una orden que llenó en partes (NULL = nada aplicado todavía)
                               ("ordenes", (("llenado_aplicado", "REAL"), ("precio_aplicado", "REAL"),
-                                           ("comision_aplicada", "REAL")))):
+                                           ("comision_aplicada", "REAL"), ("enviada_ms", "INTEGER"),
+                                           ("precio_ref", "REAL")))):
             cols = {r[1] for r in self.cx.execute(f"PRAGMA table_info({tabla})")}
             for col, tipo in nuevas:
                 if col not in cols:

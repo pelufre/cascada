@@ -1,0 +1,47 @@
+{
+ "cagr": 0.16271599639223822,
+ "dd_optimista": -0.3522447684972898,
+ "dd_pesimista": -0.35607030012754515,
+ "dd_estricta": -0.366564986649106,
+ "sharpe": 0.5661177038494352,
+ "calmar": 0.45697716527874693,
+ "nocional_max": 1.0519383543296348,
+ "exposicion_max": 1.0519383543296348,
+ "p95": 0.646174899454486,
+ "por_año": {
+  "2024": 0.6063638855120919,
+  "2025": -0.2101619125602031,
+  "2026": 0.19286721190924094
+ },
+ "lotes": 15,
+ "lotes_cerrados": 14,
+ "lotes_abiertos": 1,
+ "ganadoras": 0.2857142857142857,
+ "factor_beneficio": 1.8850817700664475,
+ "peor_lote": -131.76340696171127,
+ "atribucion": {
+  "por_estrategia": {
+   "btc_tend": 1540.4130180808104
+  },
+  "lotes_cerrados": {
+   "btc_tend": 806.3021371956931
+  },
+  "lotes_abiertos": {
+   "btc_tend": 734.1108808851172
+  },
+  "funding_principal": 715.8898843008475,
+  "comisiones_principal": 65.53949006834999,
+  "transferido_a_balas": 0.0,
+  "residuo_principal": 2.9558577807620168e-12,
+  "total": 1540.4130180808104
+ },
+ "funding": 715.8898843008475,
+ "comisiones": 65.53949006834999,
+ "pesos": {
+  "btc_tend": 1.0
+ },
+ "corrida": "B",
+ "tramo": "OOS",
+ "operable": false,
+ "segundos": 71
+}

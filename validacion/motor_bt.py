@@ -108,6 +108,8 @@ class Corrida:
         operable: variante con el universo que de verdad opera KuCoin (contrato con el mismo ticker, desde su apertura)."""
         self.cargar = cargar; self.mercados = mercados; self.cfg_fija = cfg
         self.sin_costos = sin_costos; self.sin_funding = sin_funding; self.operable = operable
+        if modo == "PAPEL" and cargar is None:
+            raise PermissionError("El modo PAPEL compara con datos del servicio (cargar=…); no lee el paquete sin límite")
         self.lim = D.limite(modo)
         self.desde = pd.Timestamp(desde or D.INICIO_IS)
         self.hasta = min(pd.Timestamp(hasta), self.lim) if hasta else self.lim

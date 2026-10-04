@@ -72,6 +72,7 @@ def _caso(args):
     m["comisiones"] = at["comisiones_principal"] + (at.get("balas", {}).get("comisiones") or 0.0)
     m.update(pesos=pesos, corrida=corrida, tramo=tramo, operable=operable, segundos=round(time.time() - t0))
     rr.serie.to_pickle(RES / f"{clave}.pkl")
+    rr.operaciones().to_pickle(RES / f"{clave}_lotes.pkl")
     salida.write_text(json.dumps(m, indent=1, ensure_ascii=False, default=float))
     return clave, m, time.time() - t0
 

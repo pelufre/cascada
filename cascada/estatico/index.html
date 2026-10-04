@@ -58,7 +58,7 @@ canvas{max-height:320px}.two{display:grid;gap:12px;grid-template-columns:1fr}@me
 </section>
 <section class="sec" id="s-backtest">
   <div class="card"><h2>En vivo contra el backtest del nivel</h2><p class="mu" id="bandaTxt"></p><canvas id="cCmp"></canvas></div>
-  <div class="card"><h2>Backtest validado 2020 → sep 2026 por nivel (escala log)</h2><p class="mu">3000 USDT con contratos reales de KuCoin, costos y funding. Los pesos se eligieron sólo con 2020–2023; 2024–2026 es el período de prueba, abierto una vez con los pesos congelados.</p><canvas id="cNiv"></canvas><div class="tw" id="tBt"></div></div>
+  <div class="card"><h2>Backtest del simulador 2020 → sep 2026 por nivel (escala log)</h2><p class="mu">Motor 1.3, 3000 USDT con contratos reales de KuCoin, costos y funding. Los pesos se eligieron sólo con 2020–2023; 2024–2026 es el período de prueba, abierto una vez con los pesos congelados. Es una simulación: la ejecución con dinero real todavía no está aprobada.</p><canvas id="cNiv"></canvas><div class="tw" id="tBt"></div></div>
   <div class="card"><h2>Estrategias por separado, cada una con todo el capital (escala log)</h2><canvas id="cBEst"></canvas></div>
 </section>
 </main>
@@ -126,7 +126,7 @@ async function backtest(){
  chart('cNiv',{type:'line',data:{labels:d.fechas,datasets:Object.keys(d.niveles).map((k,i)=>linea(k.replace('nivel_','Nivel ')+' %',d.niveles[k],COL[i]))},options:{scales:log,interaction:{mode:'index',intersect:false}}});
  chart('cBEst',{type:'line',data:{labels:d.fechas,datasets:Object.keys(d.estrategias).map((k,i)=>linea(NOM[k]||k,d.estrategias[k],COL[i]))},options:{scales:log,interaction:{mode:'index',intersect:false}}});
  const R=d.resumen,ks=Object.keys(R).filter(k=>!k.startsWith('_')),años=Object.keys(R[ks[0]].anual);
- $('tBt').innerHTML=tabla([['Nivel',k=>k.replace('nivel_','Nivel ')+' %'],['Tasa 2020–23',k=>sp(R[k].cagr_is),'n'],['Tasa 2024–26 (prueba)',k=>sp(R[k].cagr_oos),'n'],['Tasa total',k=>sp(R[k].cagr),'n'],['Caída (cierres 4 h)',k=>pc(R[k].dd_diaria),'n'],['Caída (peor punto)',k=>pc(R[k].dd_intrabarra),'n'],['Sharpe',k=>R[k].sharpe.toFixed(2),'n'],...años.map(a=>[a,k=>sp(R[k].anual[a],0),'n'])],ks);
+ $('tBt').innerHTML=tabla([['Nivel',k=>k.replace('nivel_','Nivel ')+' %'],['Tasa 2020–23',k=>sp(R[k].cagr_is),'n'],['Tasa 2024–26 (prueba)',k=>sp(R[k].cagr_oos),'n'],['Tasa total',k=>sp(R[k].cagr),'n'],['Caída (cierres 4 h)',k=>pc(R[k].dd_diaria),'n'],['Caída (peor punto)',k=>pc(R[k].dd_intrabarra),'n'],['Caída (estricta)',k=>R[k].dd_estricta==null?'—':pc(R[k].dd_estricta),'n'],['Sharpe',k=>R[k].sharpe.toFixed(2),'n'],...años.map(a=>[a,k=>sp(R[k].anual[a],0),'n'])],ks);
 }
 async function cmd(n){if(n=='pausar'&&!confirm('¿Pausar? No se abren lotes nuevos; los abiertos siguen.'))return;
  try{const r=await j('/api/comando',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:n})});alert(r.respuesta||r.error);todo();}catch(e){alert('Error: '+e.message);}}

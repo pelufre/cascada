@@ -28,9 +28,16 @@ def _sha(p):
     return h.hexdigest()
 
 
+# SHA-256 de pesos_congelados.json tal como quedó en el commit 54ddf76 (REGISTRO.md): el período de prueba sólo se abre
+# con ESE archivo, no con cualquier versión limpia del repositorio.
+HASH_CONGELADO = "5da5dcd4398b996a2819eafaa51b7de63185818dc232662c499f664dd408cfa3"
+
+
 def autorizado_oos():
-    """El período de prueba sólo se abre con los pesos congelados en un commit (protocolo §5.7 y §6)."""
+    """El período de prueba sólo se abre con los pesos congelados en un commit (protocolo §5.7 y §6), con su huella."""
     if os.environ.get("CASCADA_ABRIR_OOS") != "1" or not CONGELADO.exists():
+        return False
+    if _sha(CONGELADO) != HASH_CONGELADO:
         return False
     import subprocess
     r = subprocess.run(["git", "log", "--format=%H", "--", str(CONGELADO)], cwd=RAIZ, capture_output=True, text=True)
@@ -45,7 +52,7 @@ def limite(modo):
         if not autorizado_oos():
             raise PermissionError("El período 2024–2026 está cerrado: primero hay que congelar los pesos (protocolo §5.7)")
         return FIN_OOS
-    if modo == "PAPEL":          # comparación con el papel: datos posteriores al congelado de los pesos
+    if modo == "PAPEL":          # comparación con el papel: sólo con un cargador de datos del servicio (motor_bt lo exige)
         return pd.Timestamp("2100-01-01")
     raise ValueError(modo)
 

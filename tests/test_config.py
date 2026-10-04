@@ -17,7 +17,9 @@ def pesos_iguales_a_los_congelados():
         assert set(C.NIVELES[k]) == set(w), k
         for e, v in w.items():
             assert abs(C.NIVELES[k][e] - v) < 1e-9, (k, e, C.NIVELES[k][e], v)
-        p95 = d["verificacion_motor"][n]["resultados"]["B"]["p95"]
+        # p95 de IS que muestra el servicio: el del motor 1.3 (revalidación E14) con los mismos pesos congelados
+        rev = CONG.parent / "resultados" / "revalidacion" / f"n{n}_IS_B.json"
+        p95 = json.loads(rev.read_text())["p95"] if rev.exists() else d["verificacion_motor"][n]["resultados"]["B"]["p95"]
         assert abs(C.P95_IS[k] - p95) < 5e-4, (k, C.P95_IS[k], p95)
 
 
