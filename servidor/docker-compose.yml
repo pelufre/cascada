@@ -1,0 +1,29 @@
+# Sistema 3 (FR20 + modo BTC + cortos Aberration) en KuCoin. Correr los comandos desde esta carpeta.
+services:
+  sistema3:
+    build:
+      context: ..
+      dockerfile: servidor/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./datos:/app/datos
+      - ../config/sistema3.yaml:/app/config/sistema3.yaml:ro
+    ports:
+      - "127.0.0.1:8080:8080"     # sólo local; desde afuera se entra por Caddy (HTTPS)
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy_data:/data
+      - ./caddy_config:/config
+    depends_on: [sistema3]

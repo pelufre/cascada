@@ -1,0 +1,9 @@
+{$DOMINIO} {
+	encode gzip
+	reverse_proxy sistema3:8080
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+	}
+}

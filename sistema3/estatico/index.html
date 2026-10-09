@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistema 3 en vivo</title>
+<script src="/estatico/chart.umd.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#17202a;--mu:#6b7785;--bd:#e3e7ec;--ac:#2563eb;--ok:#15803d;--ko:#b91c1c;--wa:#b45309;--chip:#eef2f7;--alts:#7c3aed;--btc:#d97706;--usdt:#64748b}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1318;--card:#171c23;--tx:#e6e9ee;--mu:#93a0ae;--bd:#27303a;--ac:#60a5fa;--ok:#4ade80;--ko:#f87171;--wa:#fbbf24;--chip:#202833;--alts:#a78bfa;--btc:#fbbf24;--usdt:#94a3b8}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--bd);padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+header h1{font-size:17px;margin:0}.est{font-size:12px;padding:3px 8px;border-radius:99px;background:var(--chip)}
+nav{display:flex;gap:4px;overflow-x:auto;padding:8px 16px;background:var(--card);border-bottom:1px solid var(--bd)}
+nav button{border:0;background:none;color:var(--mu);padding:6px 10px;border-radius:8px;font:inherit;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--chip);color:var(--tx);font-weight:600}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.k .l{color:var(--mu);font-size:12px}.k .v{font-size:20px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+.pos{color:var(--ok)}.neg{color:var(--ko)}.mu{color:var(--mu)}
+h2{font-size:15px;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+th{color:var(--mu);font-weight:500;font-size:12px}td.n,th.n{text-align:right}td.w{white-space:pre-wrap;min-width:260px}
+.tw{overflow-x:auto}.sec{display:none}.sec.on{display:block}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.btns button,.b{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:5px 10px;border-radius:8px;cursor:pointer;font:inherit}
+.btns button.on{border-color:var(--ac);color:var(--ac)}.b.p{background:var(--ac);border-color:var(--ac);color:#fff}
+.tag{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--chip)}
+.critica,.alta{color:var(--ko)}.media{color:var(--wa)}
+canvas{max-height:320px}.two{display:grid;gap:12px;grid-template-columns:1fr}@media(min-width:900px){.two{grid-template-columns:1fr 1fr}}
+.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:6px}.cal div{padding:8px;border-radius:8px;text-align:center;font-size:12px}
+.modo{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.modo .big{font-size:28px;font-weight:700;letter-spacing:.02em}
+.m-ALTS{color:var(--alts)}.m-BTC{color:var(--btc)}.m-USDT{color:var(--usdt)}
+.pend{border-color:var(--ac);border-width:2px}.pend pre{white-space:pre-wrap;font:inherit;margin:8px 0}
+.strip{display:flex;gap:2px;margin-top:8px}.strip span{flex:1;height:14px;border-radius:2px}
+</style>
+</head>
+<body>
+<header><h1>Sistema 3</h1><span id="hModo" class="est"></span><span id="hCuenta" class="est"></span><span id="hFlags"></span>
+<span style="flex:1"></span><button class="b" onclick="cmd('pausar')">Pausar</button><button class="b" onclick="cmd('reanudar')">Reanudar</button></header>
+<nav id="nav"></nav>
+<main>
+<section class="sec on" id="s-resumen">
+  <div id="pend"></div>
+  <div class="card"><div class="modo"><div><div class="mu">Modo del día</div><div class="big" id="mBig">—</div></div>
+    <div class="mu" id="mTxt"></div></div><div class="strip" id="mStrip" title="Modo de los últimos 60 días"></div></div>
+  <div class="grid" id="kpis"></div>
+  <div class="card"><div class="btns" id="rangos"></div><canvas id="cEq"></canvas></div>
+  <div class="two"><div class="card"><h2>Caída desde el máximo</h2><canvas id="cDD"></canvas></div>
+  <div class="card"><h2>Exposición (fracción del capital)</h2><canvas id="cEx"></canvas></div></div>
+</section>
+<section class="sec" id="s-posiciones"><div class="card"><h2>Posiciones abiertas</h2><div class="tw" id="tPos"></div></div></section>
+<section class="sec" id="s-operaciones">
+  <div class="grid" id="kCer"></div>
+  <div class="card"><h2>Operaciones cerradas</h2><div class="tw" id="tCer"></div></div>
+  <div class="card"><h2>Órdenes</h2><div class="tw" id="tOps"></div></div>
+</section>
+<section class="sec" id="s-rendimiento">
+  <div class="card"><h2>Mensual</h2><div class="cal" id="calM"></div></div>
+  <div class="two"><div class="card"><h2>Semanal</h2><div class="tw" id="tSem"></div></div><div class="card"><h2>Diario</h2><div class="tw" id="tDia"></div></div></div>
+</section>
+<section class="sec" id="s-decisiones">
+  <div class="card"><h2>Decisiones</h2><div class="tw" id="tDec"></div></div>
+  <div class="card"><h2>Modo por día</h2><div class="tw" id="tModos"></div></div>
+</section>
+<section class="sec" id="s-incidencias"><div class="card"><h2>Incidencias</h2><div class="tw" id="tInc"></div></div></section>
+<section class="sec" id="s-sistema">
+  <div class="card"><h2>Reglas (congeladas)</h2>
+  <p><b>Largos (cuenta SPOT, 1 vez por día a las 00:00 UTC).</b> Filtro de BTC: cierre &gt; SMA140 y ROC84 &gt; 0. Amplitud: % del top 50 elegible con cierre &gt; SMA50, se enciende sobre 70 % y se apaga bajo 50 %.</p>
+  <ul><li><b class="m-ALTS">ALTS</b> (BTC y amplitud encendidos): hasta 10 alts cuyo par alt/BTC está sobre su SMA20, con ROC10 &gt; 0 y precio sobre SMA20; orden por ROC20 del par; peso = mín(10 %; riesgo ÷ ATR%). Salen cuando el par cierra bajo la SMA20.</li>
+  <li><b class="m-BTC">BTC</b> (BTC encendido, amplitud apagada): BTC con el porcentaje del nivel.</li>
+  <li><b class="m-USDT">USDT</b> (BTC apagado): todo en USDT.</li></ul>
+  <p><b>Cortos Aberration (cuenta FUTUROS, cada 4 h).</b> Sólo con ROC90 de BTC &lt; 0. Corto en alts del top 50 que cierran bajo la banda SMA120 − 2 desviaciones, con ROC90 negativo y sin derrumbe de más de 20 % en la vela; hasta 5, 10 % del capital cada uno; salen al cerrar sobre la SMA120.</p>
+  <p><b>Conflicto.</b> Si hay largos y cortos a la vez, todo va a la mitad; al terminar, las posiciones vuelven a su tamaño normal.</p>
+  <p class="mu" id="pNivel"></p>
+  <p class="mu">Señales con velas de Binance (los datos del backtest); ejecución en KuCoin.</p></div>
+  <div class="card"><h2>Referencia del backtest (nivel moderado)</h2>
+  <table><tr><th>Tramo</th><th class="n">Anual</th><th class="n">Caída máx.</th></tr>
+  <tr><td>2020 → 09/2026</td><td class="n">123 %</td><td class="n">−35 %</td></tr>
+  <tr><td>2018-2019 (fuera de muestra)</td><td class="n">76 %</td><td class="n">−35 %</td></tr>
+  <tr><td>Walk-forward de estructura 2019-2026</td><td class="n">108 %</td><td class="n">—</td></tr></table>
+  <p class="mu">Cifras de simulación con sesgo de selección: la expectativa honesta es del orden de la mitad, con caídas de −30 a −40 %. Resultados pasados no garantizan resultados futuros.</p></div>
+</section>
+</main>
+<script>
+const SEC=[["resumen","Resumen"],["posiciones","Posiciones"],["operaciones","Operaciones"],["rendimiento","Rendimiento"],["decisiones","Decisiones"],["incidencias","Incidencias"],["sistema","Sistema"]];
+const $=id=>document.getElementById(id);
+const P=(x,d=1)=>x==null?"—":(x*100).toFixed(d).replace(".",",")+" %";
+const PS=(x,d=1)=>x==null?"—":(x>0?"+":"")+P(x,d);
+const N=(x,d=0)=>x==null?"—":Number(x).toLocaleString("es-AR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const PX=x=>x==null?"—":(x>=100?N(x,2):x>=1?N(x,4):Number(x).toPrecision(4));
+const C=x=>x==null?"":x>0?"pos":x<0?"neg":"";
+const esc=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+let rango="30d",charts={},D=null;
+$("nav").innerHTML=SEC.map(([k,t])=>`<button data-k="${k}" class="${k=="resumen"?"on":""}">${t}</button>`).join("");
+$("nav").onclick=e=>{const k=e.target.dataset.k;if(!k)return;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.k==k));document.querySelectorAll(".sec").forEach(s=>s.classList.toggle("on",s.id=="s-"+k));if(k=="operaciones")ops()};
+$("rangos").innerHTML=["7d","30d","90d","365d","todo"].map(r=>`<button data-r="${r}" class="${r==rango?"on":""}">${r=="todo"?"Todo":r.replace("d"," días")}</button>`).join("");
+$("rangos").onclick=e=>{const r=e.target.dataset.r;if(!r)return;rango=r;document.querySelectorAll("#rangos button").forEach(b=>b.classList.toggle("on",b.dataset.r==r));pat()};
+function tabla(cols,filas){return `<table><tr>${cols.map(c=>`<th class="${c[2]||""}">${c[0]}</th>`).join("")}</tr>${filas.map(f=>`<tr>${cols.map(c=>{const v=c[1](f);return `<td class="${c[2]||""} ${c[3]?c[3](f):""}">${v}</td>`}).join("")}</tr>`).join("")||`<tr><td class="mu" colspan="${cols.length}">Sin datos</td></tr>`}</table>`}
+function chart(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($(id),cfg)}
+const base={responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksLimit:8}},y:{}}};
+async function j(u,o){const r=await fetch(u,o);if(!r.ok)throw new Error(r.status);return r.json()}
+async function cmd(nombre,id){try{const r=await j("/api/comando",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nombre,id})});alert(r.respuesta||r.error);todo()}catch(e){alert("Error: "+e.message)}}
+async function todo(){
+  D=await j("/api/todo");const k=D.kpis,e=D.estado,v=D.valuacion||{};
+  $("hModo").innerHTML=`Modo <b class="m-${e.modo}">${e.modo||"—"}</b>`;$("hCuenta").textContent=(e.cuenta=="real"?"Real":"Papel")+" · "+e.nivel+(e.confirmar?" · con confirmación":"");
+  $("hFlags").innerHTML=(e.pausado?'<span class="tag alta">EN PAUSA</span> ':"")+(e.conflicto?'<span class="tag media">CONFLICTO: mitad</span>':"");
+  $("pNivel").textContent=`Nivel ${e.nivel}: riesgo por alt ${P(e.parametros.riesgo_alt,2)}, modo BTC ${P(e.parametros.btc,0)} del capital. Versión ${e.version||""}.`;
+  const pend=D.decisiones.find(d=>d.estado=="pendiente");
+  $("pend").innerHTML=pend?`<div class="card pend"><h2>Decisión #${pend.id} esperando confirmación</h2><pre>${esc(pend.resumen)}</pre><div class="mu">Vence ${pend.vence} UTC</div><div class="btns" style="margin-top:8px"><button class="b p" onclick="cmd('si','${pend.id}')">Ejecutar</button><button class="b" onclick="cmd('no','${pend.id}')">Descartar</button></div></div>`:"";
+  const m=D.modos[0];$("mBig").innerHTML=`<span class="m-${e.modo}">${e.modo||"—"}</span>`;
+  $("mTxt").innerHTML=m?`Vela ${m.fecha} · BTC ${N(m.btc)} contra SMA140 ${N(m.sma140)} · ROC84 ${PS(m.roc84)} · amplitud ${P(m.amplitud,0)} (${m.amp_on?"encendida":"apagada"})`:"Todavía sin decisión diaria";
+  $("mStrip").innerHTML=D.modos.slice().reverse().map(x=>`<span title="${x.fecha}: ${x.modo}" style="background:var(--${x.modo=="ALTS"?"alts":x.modo=="BTC"?"btc":"usdt"})"></span>`).join("");
+  const K=k.hay?[["Capital",N(k.total)+" USDT"],["Hoy",PS(k.hoy,2),C(k.hoy)],["Semana",PS(k.semana),C(k.semana)],["Mes",PS(k.mes),C(k.mes)],["Desde el inicio",PS(k.total_pct),C(k.total_pct)],["Anual (CAGR)",k.cagr==null?"— (menos de 30 días)":PS(k.cagr),C(k.cagr)],["Caída actual",P(k.caida),C(k.caida)],["Caída máxima",P(k.caida_max),C(k.caida_max)],["Sharpe",k.sharpe==null?"—":N(k.sharpe,2)],["Largos",P(k.expo_largos,0)],["Cortos",P(k.expo_cortos,0)],["Spot / futuros",N(k.spot)+" / "+N(k.futuros)]]:[["Capital",v.T!=null?N(v.T)+" USDT":"—"],["Estado","Esperando el primer registro"]];
+  $("kpis").innerHTML=K.map(x=>`<div class="card k"><div class="l">${x[0]}</div><div class="v ${x[2]||""}">${x[1]}</div></div>`).join("");
+  $("tPos").innerHTML=tabla([["Tipo",p=>p.parte],["Moneda",p=>"<b>"+p.simbolo+"</b>"+(p.mitad?' <span class="tag media">mitad</span>':"")],["Desde",p=>p.desde],["Cantidad",p=>N(p.cantidad,4),"n"],["Entrada",p=>PX(p.entrada),"n"],["Precio",p=>PX(p.precio),"n"],["Valor USDT",p=>N(Math.abs(p.valor||0)),"n"],["Peso",p=>P(Math.abs(p.peso||0)),"n"],["Resultado",p=>PS(p.resultado),"n",p=>C(p.resultado)]],D.posiciones);
+  const R=D.rendimientos;
+  $("calM").innerHTML=R.mensual.map(x=>`<div style="background:${x.r>=0?"rgba(21,128,61,":"rgba(185,28,28,"}${Math.min(.15+Math.abs(x.r)*2,.7)})"><div class="mu">${x.periodo}</div><b>${PS(x.r)}</b></div>`).join("")||'<span class="mu">Sin datos</span>';
+  $("tSem").innerHTML=tabla([["Semana que termina",x=>x.periodo],["Rendimiento",x=>PS(x.r,2),"n",x=>C(x.r)]],R.semanal);
+  $("tDia").innerHTML=tabla([["Día",x=>x.periodo],["Rendimiento",x=>PS(x.r,2),"n",x=>C(x.r)]],R.diario);
+  $("tDec").innerHTML=tabla([["#",d=>d.id],["Hora (UTC)",d=>d.fecha],["Tipo",d=>d.tipo],["Estado",d=>`<span class="tag">${d.estado}</span>`],["Decisión",d=>esc(d.resumen),"w"],["Resultado",d=>esc(d.resultado||""),"w"]],D.decisiones);
+  $("tModos").innerHTML=tabla([["Día",x=>x.fecha],["Modo",x=>`<b class="m-${x.modo}">${x.modo}</b>`],["BTC",x=>N(x.btc),"n"],["SMA140",x=>N(x.sma140),"n"],["ROC84",x=>PS(x.roc84),"n"],["Amplitud",x=>P(x.amplitud,0),"n"],["Estado",x=>x.amp_on?"encendida":"apagada"]],D.modos);
+  $("tInc").innerHTML=tabla([["Hora (UTC)",x=>x.fecha],["Nivel",x=>x.nivel,"",x=>x.nivel],["Tipo",x=>x.tipo],["Mensaje",x=>esc(x.mensaje),"w"],["",x=>x.resuelta?"resuelta":""]],D.incidencias);
+  const ce=D.cerradas;$("kCer").innerHTML=[["Largos cerrados",ce.A.n],["Ganadoras largos",P(ce.A.ganadoras,0)],["Resultado largos",N(ce.A.pnl)+" USDT"],["Cortos cerrados",ce.B.n],["Ganadoras cortos",P(ce.B.ganadoras,0)],["Resultado cortos",N(ce.B.pnl)+" USDT"]].map(x=>`<div class="card k"><div class="l">${x[0]}</div><div class="v">${x[1]}</div></div>`).join("");
+}
+async function pat(){
+  const d=await j("/api/patrimonio?rango="+rango);
+  chart("cEq",{type:"line",data:{labels:d.t,datasets:[{label:"Capital USDT",data:d.total,borderColor:getComputedStyle(document.body).getPropertyValue("--ac"),pointRadius:0,borderWidth:2}]},options:base});
+  chart("cDD",{type:"line",data:{labels:d.caida.t,datasets:[{label:"Caída",data:d.caida.v.map(x=>x*100),borderColor:"#b91c1c",backgroundColor:"rgba(185,28,28,.15)",fill:true,pointRadius:0,borderWidth:1}]},options:{...base,scales:{...base.scales,y:{ticks:{callback:v=>v+" %"}}}}});
+  chart("cEx",{type:"line",data:{labels:d.t,datasets:[{label:"Largos",data:d.largos,borderColor:"#7c3aed",pointRadius:0,borderWidth:1.5,stepped:true},{label:"Cortos",data:d.cortos,borderColor:"#d97706",pointRadius:0,borderWidth:1.5,stepped:true}]},options:{...base,plugins:{legend:{display:true}}}});
+}
+async function ops(){
+  const d=await j("/api/operaciones?limite=300");
+  $("tCer").innerHTML=tabla([["Tipo",x=>x.parte=="A"?"Largo":"Corto"],["Moneda",x=>"<b>"+x.simbolo+"</b>"],["Abierta",x=>x.abierto],["Cerrada",x=>x.cerrado],["Entrada",x=>PX(x.entrada),"n"],["Salida",x=>PX(x.salida),"n"],["Invertido",x=>N(x.invertido),"n"],["Resultado",x=>N(x.pnl,2),"n",x=>C(x.pnl)],["%",x=>PS(x.pnl_pct),"n",x=>C(x.pnl_pct)],["Motivo",x=>esc(x.motivo)]],d.cerradas);
+  $("tOps").innerHTML=tabla([["Hora (UTC)",x=>x.fecha],["Cuenta",x=>x.parte=="A"?"Spot":"Futuros"],["Moneda",x=>x.simbolo],["Lado",x=>x.lado],["Cantidad",x=>N(x.cantidad,4),"n"],["Precio",x=>PX(x.precio),"n"],["USDT",x=>N(x.usdt,2),"n"],["Comisión",x=>N(x.comision,3),"n"],["Motivo",x=>esc(x.motivo)],["",x=>x.modo=="papel"?'<span class="tag">papel</span>':""]],d.operaciones);
+}
+async function ciclo(){try{await todo();await pat()}catch(e){console.error(e)}}
+ciclo();setInterval(ciclo,60000);
+</script>
+</body>
+</html>

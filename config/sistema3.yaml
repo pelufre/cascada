@@ -1,0 +1,7 @@
+# Sistema 3 — FR20 + modo BTC + cortos Aberration 0,5× (reglas congeladas; ver sistema3/senales.py)
+modo: real            # real | papel
+nivel: moderado       # conservador (0,40 % por alt, BTC 75 %) | moderado (0,50 %, BTC 100 %) | agresivo (0,67 %, BTC 100 %)
+confirmar: true       # cada decisión con órdenes espera /si ID por Telegram (o el botón de la web)
+vence_diaria_h: 12    # horas para confirmar la decisión diaria (después se descarta)
+vence_4h_h: 3.5       # horas para confirmar una decisión de cortos
+capital_papel: 3000   # sólo en modo papel
