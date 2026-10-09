@@ -105,10 +105,13 @@ class Motor:
             self.db.incidencia("media", "datos", "Sin velas diarias de Binance: " + "; ".join(errores)[:500])
         return dfs
 
-    def decidir_diaria(self, t_cierre):
-        """t_cierre: 00:00 UTC del día que empieza. La vela usada es la del día anterior (la última cerrada)."""
+    def decidir_diaria(self, t_cierre, cartera=None):
+        """t_cierre: 00:00 UTC del día que empieza. La vela usada es la del día anterior (la última cerrada).
+        cartera: alts en cartera (por defecto, las del libro)."""
         dia = (pd.Timestamp(t_cierre).normalize() - pd.Timedelta(days=1))
         L = self.libro
+        if cartera is not None:
+            L = dict(L, alts={s: {} for s in cartera})
         top = self.top50(t_cierre)
         if not top:
             raise RuntimeError("No hay top 50 guardado: falta CMC_API_KEY o falló CoinMarketCap")
@@ -140,7 +143,8 @@ class Motor:
         info = dict(btc=float(cb.iloc[-1]), sma140=float(S.sma(cb, S.SMA_BTC).iloc[-1]), roc84=float(S.roc(cb, S.ROC_BTC).iloc[-1]),
                     amplitud=float(amp.iloc[-1]), amp_on=amp_on, btc_ok=btc_ok, n_elegibles=int(E.loc[dia].sum()))
         return dict(vela=str(dia.date()), modo=modo, info=info, ventas=r["ventas"], candidatas=r["candidatas"],
-                    ranking=r["ranking"], amp_estado=dict(fecha=str(dia.date()), on=amp_on))
+                    ranking=r["ranking"], amp_estado=dict(fecha=str(dia.date()), on=amp_on), atrp=r["atrp"],
+                    con_datos=[s for s in L["alts"] if s in C.columns and pd.notna(C[s].iloc[-1])])
 
     def registrar_modo(self, A):
         i = A["info"]
@@ -603,3 +607,113 @@ class Motor:
             return None
         d = r[0]; d["datos"] = json.loads(d["datos"])
         return d
+
+    # ============================================================================================ alineación inicial
+    ESTABLES = {"USDT", "USDC", "FDUSD", "DAI", "TUSD", "USDE", "PYUSD", "KCS"}
+
+    def adoptar(self, minimo_usd=10.0):
+        """Libro con las monedas que ya hay en SPOT (valor ≥ minimo_usd), con el precio de hoy como entrada.
+        No escribe nada: devuelve (libro, precios, descartadas)."""
+        saldos = self.bolsa.saldos_spot()
+        cand = [a for a in saldos if a not in self.ESTABLES]
+        px = self.bolsa.precios_spot(cand)
+        L = dict(alts={}, btc=None, cortos={}, conflicto=False)
+        descartadas = []
+        ahora_ms = int(time.time() * 1000)
+        for a in cand:
+            p = px.get(a)
+            v = saldos[a] * p if p else 0
+            if not p or v < minimo_usd:
+                descartadas.append(f"{a} ({usd(v)} USD)")
+                continue
+            pos = dict(cant=saldos[a], costo=v, ts=ahora_ms, reducida=False, adoptada=True)
+            if a == "BTC":
+                L["btc"] = pos
+            else:
+                L["alts"][a] = pos
+        return L, px, descartadas
+
+    def plan_alineacion(self, t_dia, umbral=0.005):
+        """Plan para que la cartera de SPOT quede como indica la señal de hoy, adoptando lo que ya hay:
+        ventas de lo que no corresponde, ajuste de peso de lo que se mantiene (si difiere más de `umbral` del capital) y
+        compras de las candidatas para los cupos libres. Devuelve dict(L, A, T, pasos, descartadas)."""
+        L, px, desc = self.adoptar()
+        A = self.decidir_diaria(t_dia, cartera=list(L["alts"]))
+        fut = self.bolsa.patrimonio_futuros()
+        usdt = self.bolsa.saldos_spot().get("USDT", 0.0)
+        valor = {s: p["cant"] * px[s] for s, p in L["alts"].items()}
+        vbtc = L["btc"]["cant"] * px["BTC"] if L["btc"] else 0.0
+        T = usdt + fut + sum(valor.values()) + vbtc
+        pasos = []           # (accion, sim, monto_usd o fraccion, motivo)
+        m = A["modo"]
+        if m == "USDT":
+            pasos += [("vender", s, 1.0, "modo USDT") for s in L["alts"]] + ([("vender", "BTC", 1.0, "modo USDT")] if L["btc"] else [])
+        elif m == "BTC":
+            pasos += [("vender", s, 1.0, "modo BTC") for s in L["alts"]]
+            obj = self.cfg.pct_btc * T
+            if obj - vbtc > umbral * T:
+                pasos.append(("comprar", "BTC", obj - vbtc, f"modo BTC: hasta el {self.cfg.pct_btc:.0%} del capital"))
+            elif vbtc - obj > umbral * T:
+                pasos.append(("vender", "BTC", (vbtc - obj) / vbtc, "modo BTC: exceso sobre el objetivo"))
+        else:
+            if L["btc"]:
+                pasos.append(("vender", "BTC", 1.0, "modo ALTS: BTC no forma parte de la cartera"))
+            sin_datos = [s for s in L["alts"] if s not in A["con_datos"]]
+            for s in L["alts"]:
+                if s in A["ventas"]:
+                    pasos.append(("vender", s, 1.0, "par alt/BTC bajo su SMA20"))
+                elif s in sin_datos:
+                    pasos.append(("vender", s, 1.0, "sin par en Binance: el sistema no la puede seguir"))
+            quedan = [s for s in L["alts"] if s not in A["ventas"] and s not in sin_datos]
+            for s in quedan:
+                a = A["atrp"].get(s)
+                obj = min(S.PESO_MAX_ALT, self.cfg.riesgo_alt / a) * T if a else valor[s]
+                d = obj - valor[s]
+                if d > umbral * T:
+                    pasos.append(("comprar", s, d, f"ajuste al peso de hoy {obj / T:.1%}"))
+                elif -d > umbral * T:
+                    pasos.append(("vender", s, -d / valor[s], f"ajuste al peso de hoy {obj / T:.1%}"))
+            libres = S.CUPOS_ALTS - len(quedan)
+            for x in [c for c in A["ranking"] if c["sim"] not in L["alts"]][:max(libres, 0)]:
+                pasos.append(("comprar", x["sim"], x["peso"] * T, f"FR20 peso {x['peso']:.1%}"))
+        return dict(L=L, A=A, T=T, usdt=usdt, futuros=fut, valor=valor, vbtc=vbtc, pasos=pasos, descartadas=desc, precios=px)
+
+    def texto_alineacion(self, P):
+        A, L = P["A"], P["L"]
+        lin = [f"Capital total {usd(P['T'])} USDT (USDT spot {usd(P['usdt'])}, futuros {usd(P['futuros'])}, "
+               f"monedas {usd(sum(P['valor'].values()) + P['vbtc'])})",
+               self.texto_decision(dict(A=A, acciones=[])).split("\n")[0],
+               "Adoptadas: " + (", ".join(f"{s} {usd(v)}" for s, v in P["valor"].items()) or "—")
+               + (f", BTC {usd(P['vbtc'])}" if L["btc"] else "")]
+        if P["descartadas"]:
+            lin.append("Ignoradas (menos de 10 USD o sin precio): " + ", ".join(P["descartadas"]))
+        for acc, s, x, motivo in P["pasos"]:
+            if acc == "vender":
+                v = (P["vbtc"] if s == "BTC" else P["valor"].get(s, 0)) * x
+                lin.append(f"• VENDER {s} {'todo' if x >= 1 else f'{x:.0%}'} (~{usd(v)} USDT) — {motivo}")
+            else:
+                lin.append(f"• COMPRAR {s} por ~{usd(x)} USDT — {motivo}")
+        if not P["pasos"]:
+            lin.append("• Nada que hacer: la cartera ya coincide con la señal")
+        return "\n".join(lin)
+
+    def ejecutar_alineacion(self, P):
+        """Escribe el libro adoptado y ejecuta el plan: primero las ventas, después las compras (con el USDT disponible)."""
+        L = P["L"]
+        self.guardar(L)
+        informe = []
+        self.bolsa.refrescar(); self.bolsa.usdt_a_trading()
+        libre = self.bolsa.libre_futuros()
+        if libre >= 1 and not L["cortos"]:
+            self.bolsa.transferir(libre, "spot")
+            informe.append(f"Pasé {usd(libre)} USDT de FUTUROS a SPOT")
+        for acc, s, x, motivo in P["pasos"]:
+            if acc == "vender":
+                self._vender_largo(L, s, x, "alineación: " + motivo, informe)
+        for acc, s, x, motivo in P["pasos"]:
+            if acc == "comprar":
+                monto = min(x, self.bolsa.usdt_spot_libre() * (1 - COMISION_SPOT))
+                if monto < POLVO_USD or not self._comprar_largo(L, s, monto, "alineación: " + motivo, informe):
+                    informe.append(f"No alcanzó el USDT para {s}")
+        self.guardar(L)
+        return informe

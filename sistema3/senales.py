@@ -135,7 +135,8 @@ def fr20(C, H, L, c_btc, E_hoy, cartera, cupos=None, riesgo_alt=NIVELES["moderad
                 continue
             cand.append(dict(sim=s, roc20=float(r20), atrp=a, peso=min(PESO_MAX_ALT, riesgo_alt / a)))
     cand.sort(key=lambda x: -x["roc20"])
-    return dict(ventas=ventas, candidatas=cand[:max(libres, 0)], ranking=cand[:15])
+    return dict(ventas=ventas, candidatas=cand[:max(libres, 0)], ranking=cand[:15],
+                atrp={k: float(v) for k, v in atrp.items() if pd.notna(v)})
 
 
 # ---------------------------------------------------------------------------------------------- parte B (4 h)

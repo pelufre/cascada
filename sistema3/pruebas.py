@@ -247,7 +247,35 @@ def main():
     prueba_modo_alts()
     prueba_cortos_y_conflicto()
     prueba_confirmacion()
+    prueba_alineacion()
     print("\nTodas las pruebas pasaron.")
+
+
+
+def prueba_alineacion():
+    print("Alineación inicial (adoptar lo que hay)")
+    D = {"BTC": serie_diaria(0.003, p0=50_000, semilla=1)}
+    for i in range(14):
+        d = serie_diaria(0.004 + 0.0005 * i, semilla=20 + i, vol=0.02); d["h"] *= 1.03; d["l"] *= 0.97
+        D[f"A{i}"] = d
+    D["MAL"] = serie_diaria(0.004, semilla=77, quiebre=(25, -0.03))       # en cartera, ya bajo su SMA20
+    m, f, b, _ = armar(D, {"BTC": serie_4h(0.0005, p0=50_000, semilla=3)})
+    b.st["spot"].update({"A10": 2000 / f.precio_spot("A10"), "MAL": 1500 / f.precio_spot("MAL"), "BTC": 1000 / f.precio_spot("BTC"),
+                         "POLVO": 1e-6, "SINPAR": 5.0})
+    f.d["SINPAR"] = None
+    b.st["spot"]["USDT"] = 6000.0
+    P = m.plan_alineacion(HOY)
+    txt = m.texto_alineacion(P)
+    ok(abs(P["T"] - 10_500) < 50, f"capital = USDT + monedas adoptadas ({P['T']:.0f})")
+    ok(any(a == "vender" and s == "MAL" for a, s, *_ in P["pasos"]), "vende la que tiene el par bajo la SMA20")
+    ok(any(a == "vender" and s == "BTC" for a, s, *_ in P["pasos"]), "en modo ALTS vende el BTC")
+    ok(any(s == "A10" and "ajuste" in mot for a, s, x, mot in P["pasos"]), "ajusta el peso de la que se mantiene")
+    compras = [s for a, s, *_ in P["pasos"] if a == "comprar" and s != "A10"]
+    ok(len(compras) == 9, f"llena los cupos libres ({len(compras)} compras nuevas + A10)")
+    m.ejecutar_alineacion(P)
+    v = m.valuar(); L = m.libro
+    ok(len(L["alts"]) == 10 and not L["btc"] and "MAL" not in L["alts"], "quedan 10 alts, sin BTC ni MAL")
+    print(txt.split("\n")[0])
 
 
 if __name__ == "__main__":

@@ -6,6 +6,8 @@
   telegram-chat        muestra el chat_id de quien le escribió al bot
   aporte MONTO [nota]  registra un aporte (o retiro, con monto negativo) para que no cuente como rendimiento
   prueba-transferencia mueve 2 USDT de SPOT a FUTUROS y los devuelve
+  alinear [--ejecutar]  adopta lo que hay en SPOT y lo lleva a la cartera que indica la señal de hoy
+                       (sin --ejecutar sólo muestra el plan)
 """
 import json
 import sys
@@ -114,6 +116,31 @@ def prueba_transferencia():
     print("Futuros después:", b.patrimonio_futuros(), "· rutas:", b.ruta_ida and b.ruta_ida[1:], b.ruta_vuelta and b.ruta_vuelta[1:])
 
 
+def alinear(ejecutar=False):
+    s = _servicio()
+    m = s.motor
+    from .principal import ultimo_cierre
+    hoy = ultimo_cierre().normalize()
+    m.actualizar_universo(hoy)
+    P = m.plan_alineacion(hoy)
+    print(m.texto_alineacion(P))
+    if not ejecutar:
+        print("\n(Sólo el plan: no se envió ninguna orden. Para ejecutarlo: alinear --ejecutar)")
+        return
+    s.db.set("pausado", True)
+    try:
+        s.db.ejec("UPDATE decisiones SET estado='reemplazada' WHERE estado IN ('pendiente','nueva')")
+        informe = m.ejecutar_alineacion(P)
+        s.db.set("ultima_diaria", str(hoy.date()))
+        m.registrar_patrimonio()
+        print("\nEJECUTADO:\n" + "\n".join("• " + x for x in informe))
+        s.tg.avisar("op", "Alineación inicial ejecutada:\n" + "\n".join("• " + x for x in informe))
+        time.sleep(3)
+        print("\n" + s.texto_estado())
+    finally:
+        s.db.set("pausado", False)
+
+
 def main(argv=None):
     a = (argv or sys.argv)[1:]
     if not a:
@@ -129,6 +156,8 @@ def main(argv=None):
         telegram_chat()
     elif c == "aporte":
         aporte(a[1], " ".join(a[2:]))
+    elif c == "alinear":
+        alinear("--ejecutar" in a)
     elif c == "prueba-transferencia":
         prueba_transferencia()
     else:
