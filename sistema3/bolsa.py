@@ -156,8 +156,8 @@ class KucoinReal:
                     f = inst.fetch_order(oid, sym)
                     if f.get("status") in TERMINALES:
                         return f
-                except Exception as e:
-                    log.warning("consulta orden %s: %s", oid, e)
+                except Exception as e:          # KuCoin tarda un instante en publicar la orden recién creada
+                    log.debug("consulta orden %s: %s", oid, e)
                 time.sleep(self.ESPERA)
             if vuelta == 0:
                 try:

@@ -334,7 +334,8 @@ class Motor:
         if p["cant"] * r["precio"] < POLVO_USD or fraccion >= 1:
             (L.__setitem__("btc", None) if sim == "BTC" else L["alts"].pop(sim, None))
         self.guardar(L)
-        informe.append(f"Vendí {sim} {'la mitad' if fraccion < 1 else ''} a {r['precio']:.6g} · {pct(pnl / parte_costo if parte_costo else None)} ({motivo})".replace("  ", " "))
+        cuanto = "" if fraccion >= 1 else ("la mitad " if abs(fraccion - 0.5) < 1e-9 else f"el {fraccion:.0%} ")
+        informe.append(f"Vendí {cuanto}{sim} a {r['precio']:.6g} · {pct(pnl / parte_costo if parte_costo else None)} ({motivo})")
 
     def _comprar_largo(self, L, sim, usdt, motivo, informe, reducida=False):
         libre = self.bolsa.usdt_spot_libre()

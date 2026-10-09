@@ -132,6 +132,7 @@ def alinear(ejecutar=False):
         s.db.ejec("UPDATE decisiones SET estado='reemplazada' WHERE estado IN ('pendiente','nueva')")
         informe = m.ejecutar_alineacion(P)
         s.db.set("ultima_diaria", str(hoy.date()))
+        s.db.ejec("DELETE FROM patrimonio")            # la historia anterior no incluía las monedas adoptadas
         m.registrar_patrimonio()
         print("\nEJECUTADO:\n" + "\n".join("• " + x for x in informe))
         s.tg.avisar("op", "Alineación inicial ejecutada:\n" + "\n".join("• " + x for x in informe))
