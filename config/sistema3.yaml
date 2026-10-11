@@ -4,4 +4,6 @@ nivel: moderado       # conservador (0,40 % por alt, BTC 75 %) | moderado (0,50 
 confirmar: true       # cada decisión con órdenes espera /si ID por Telegram (o el botón de la web)
 vence_diaria_h: 12    # horas para confirmar la decisión diaria (después se descarta)
 vence_4h_h: 3.5       # horas para confirmar una decisión de cortos
+vence_hora_local: "11:00"   # manda sobre las dos de arriba: se puede confirmar hasta las 11:00 (hora de Argentina)
+zona_horaria: America/Argentina/Buenos_Aires
 capital_papel: 3000   # sólo en modo papel

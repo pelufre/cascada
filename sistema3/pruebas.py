@@ -219,7 +219,7 @@ def prueba_confirmacion():
     tg = TG()
     sv = Servicio.__new__(Servicio)
     import threading, queue
-    sv.cfg = Config(modo="real", nivel="moderado", confirmar=True); sv.db = m.db; sv.tg = tg; sv.fuente = f; sv.bolsa = b
+    sv.cfg = Config(modo="real", nivel="moderado", confirmar=True, vence_hora_local="11:00"); sv.db = m.db; sv.tg = tg; sv.fuente = f; sv.bolsa = b
     m.cfg = sv.cfg; m.avisar = tg.avisar; sv.motor = m; sv.cerrojo = threading.RLock(); sv.cola_web = queue.Queue()
     m.actualizar_universo = lambda t=None: False
     sv.ciclo(HOY)

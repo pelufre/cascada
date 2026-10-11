@@ -69,6 +69,10 @@ class Servicio:
         if self.db.get("inicio") is None:
             self.db.set("inicio", time.time())
 
+    def hora_local(self, ms_):
+        t = pd.to_datetime(ms_, unit="ms").tz_localize("UTC").tz_convert(self.cfg.zona_horaria)
+        return t.strftime("%d/%m %H:%M") + " hora local"
+
     # ------------------------------------------------------------------------------------------ ciclo
     def ciclo(self, t_cierre):
         t_cierre = pd.Timestamp(t_cierre)
@@ -101,9 +105,9 @@ class Servicio:
             elif self.cfg.confirmar and self.cfg.modo == "real":
                 self.motor.marcar(did, "pendiente")
                 v = self.motor.decision(did)
-                vence = pd.to_datetime(v["vence_ts"], unit="ms").strftime("%d/%m %H:%M")
+                vence = self.hora_local(v["vence_ts"])
                 self.tg.avisar("pregunta", f"Decisión #{did} · vela {t_cierre:%d/%m %H:%M} UTC\n{texto}\n\n"
-                                           f"Responder /si {did} para ejecutar o /no {did} para descartar (vence {vence} UTC).")
+                                           f"Responder /si {did} para ejecutar o /no {did} para descartar (vence {vence}).")
             else:
                 self._ejecutar(did, dec)
             if diaria:
@@ -186,7 +190,7 @@ class Servicio:
                 return self.texto_estado()
             if nombre == "pendiente":
                 p = self.motor.pendiente()
-                return f"#{p['id']} (vence {pd.to_datetime(p['vence_ts'], unit='ms'):%d/%m %H:%M} UTC)\n{p['resumen']}" if p else "No hay decisiones pendientes."
+                return f"#{p['id']} (vence {self.hora_local(p['vence_ts'])})\n{p['resumen']}" if p else "No hay decisiones pendientes."
             if nombre in ("si", "sí", "no"):
                 p = self.motor.pendiente()
                 if not p:

@@ -579,7 +579,7 @@ class Motor:
             self.db.ejec("UPDATE decisiones SET estado='reemplazada' WHERE id=?", (pend["id"],))
         dec["acciones"] = self.acciones_previstas(dec)
         diaria = bool(A) or bool(pend and pend["datos"].get("A"))
-        vence = pd.Timestamp(t_cierre) + pd.Timedelta(hours=self.cfg.vence_diaria_h if diaria else self.cfg.vence_4h_h)
+        vence = self.vencimiento(t_cierre, diaria)
         if pend and pend["datos"].get("A") and not A:
             vence = min(vence, pd.to_datetime(pend["vence_ts"], unit="ms"))
         did = uuid.uuid4().hex[:4]
@@ -587,6 +587,19 @@ class Motor:
                      (did, int(time.time() * 1000), str(t_cierre), "diaria" if diaria else "4h", "nueva",
                       self.texto_decision(dec), json.dumps(dec, default=str), ms(vence), None))
         return did, dec
+
+    def vencimiento(self, t_cierre, diaria):
+        """Hasta cuándo se puede confirmar. Con `vence_hora_local` (p. ej. "11:00"), la próxima vez que sea esa hora en
+        `zona_horaria` después del cierre de la vela (y al menos 1 h desde ahora); si no, las horas fijas de siempre."""
+        t = pd.Timestamp(t_cierre)
+        if self.cfg.vence_hora_local:
+            hh, mm = (int(x) for x in str(self.cfg.vence_hora_local).split(":"))
+            local = t.tz_localize("UTC").tz_convert(self.cfg.zona_horaria)
+            v = local.normalize() + pd.Timedelta(hours=hh, minutes=mm)
+            while v <= local or v.tz_convert("UTC").tz_localize(None) < ahora() + pd.Timedelta(hours=1):
+                v += pd.Timedelta(days=1)
+            return v.tz_convert("UTC").tz_localize(None)
+        return t + pd.Timedelta(hours=self.cfg.vence_diaria_h if diaria else self.cfg.vence_4h_h)
 
     def pendiente(self):
         r = self.db.filas("SELECT * FROM decisiones WHERE estado='pendiente' ORDER BY ts DESC LIMIT 1")

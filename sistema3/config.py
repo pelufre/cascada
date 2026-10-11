@@ -18,6 +18,8 @@ class Config:
     confirmar: bool = True              # real: cada decisión espera el OK por Telegram o la web antes de enviar órdenes
     vence_diaria_h: float = 12.0        # una decisión diaria sin respuesta se descarta pasadas estas horas
     vence_4h_h: float = 3.5             # una decisión de cortos sin respuesta se descarta pasadas estas horas
+    vence_hora_local: str = ""          # si se fija (p. ej. "11:00"), toda decisión vence la próxima vez que sea esa hora
+    zona_horaria: str = "America/Argentina/Buenos_Aires"
     capital_papel: float = 3000.0
     apalancamiento_exchange: int = 3    # sólo para la reserva de margen de KuCoin; el riesgo lo fija el nocional
     margen_objetivo: float = 0.60       # saldo de FUTUROS ≥ 60 % del nocional de cortos antes de abrir
