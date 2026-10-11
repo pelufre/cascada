@@ -6,7 +6,7 @@
   telegram-chat        muestra el chat_id de quien le escribió al bot
   aporte MONTO [nota]  registra un aporte (o retiro, con monto negativo) para que no cuente como rendimiento
   prueba-transferencia mueve 2 USDT de SPOT a FUTUROS y los devuelve
-  alinear [--ejecutar]  adopta lo que hay en SPOT y lo lleva a la cartera que indica la señal de hoy
+  alinear [--ejecutar] [--sin-ajustes]  adopta lo que hay en SPOT y lo lleva a la cartera que indica la señal de hoy
                        (sin --ejecutar sólo muestra el plan)
 """
 import json
@@ -116,13 +116,15 @@ def prueba_transferencia():
     print("Futuros después:", b.patrimonio_futuros(), "· rutas:", b.ruta_ida and b.ruta_ida[1:], b.ruta_vuelta and b.ruta_vuelta[1:])
 
 
-def alinear(ejecutar=False):
+def alinear(ejecutar=False, sin_ajustes=False):
     s = _servicio()
     m = s.motor
     from .principal import ultimo_cierre
     hoy = ultimo_cierre().normalize()
     m.actualizar_universo(hoy)
     P = m.plan_alineacion(hoy)
+    if sin_ajustes:                                   # sólo entradas y salidas de FR20, sin reajustar pesos
+        P["pasos"] = [x for x in P["pasos"] if not x[3].startswith("ajuste")]
     print(m.texto_alineacion(P))
     if not ejecutar:
         print("\n(Sólo el plan: no se envió ninguna orden. Para ejecutarlo: alinear --ejecutar)")
@@ -158,7 +160,7 @@ def main(argv=None):
     elif c == "aporte":
         aporte(a[1], " ".join(a[2:]))
     elif c == "alinear":
-        alinear("--ejecutar" in a)
+        alinear("--ejecutar" in a, "--sin-ajustes" in a)
     elif c == "prueba-transferencia":
         prueba_transferencia()
     else:
