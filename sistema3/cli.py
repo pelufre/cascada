@@ -129,12 +129,14 @@ def alinear(ejecutar=False, sin_ajustes=False):
     if not ejecutar:
         print("\n(Sólo el plan: no se envió ninguna orden. Para ejecutarlo: alinear --ejecutar)")
         return
+    antes = bool(m.libro["alts"] or m.libro["btc"])
     s.db.set("pausado", True)
     try:
         s.db.ejec("UPDATE decisiones SET estado='reemplazada' WHERE estado IN ('pendiente','nueva')")
         informe = m.ejecutar_alineacion(P)
         s.db.set("ultima_diaria", str(hoy.date()))
-        s.db.ejec("DELETE FROM patrimonio")            # la historia anterior no incluía las monedas adoptadas
+        if not antes:                                  # primera adopción: la historia anterior no incluía esas monedas
+            s.db.ejec("DELETE FROM patrimonio")
         m.registrar_patrimonio()
         print("\nEJECUTADO:\n" + "\n".join("• " + x for x in informe))
         s.tg.avisar("op", "Alineación inicial ejecutada:\n" + "\n".join("• " + x for x in informe))
@@ -142,6 +144,22 @@ def alinear(ejecutar=False, sin_ajustes=False):
         print("\n" + s.texto_estado())
     finally:
         s.db.set("pausado", False)
+
+
+def reparar_entradas(desde="2026-10-09 04:00"):
+    """Recupera precio de entrada y fecha de cada posición del libro con sus compras registradas desde `desde`."""
+    s = _servicio(); m = s.motor
+    L = m.libro
+    d0 = int(pd.Timestamp(desde).value // 10**6)
+    for sim, p in list(L["alts"].items()) + ([("BTC", L["btc"])] if L["btc"] else []):
+        f = s.db.filas("SELECT ts, cantidad, usdt FROM operaciones WHERE simbolo=? AND lado='compra' AND ts>=? ORDER BY ts", (sim, d0))
+        if not f:
+            print(f"{sim}: sin compras registradas, se deja la entrada actual"); continue
+        q = sum(x["cantidad"] for x in f); u = sum(x["usdt"] for x in f)
+        p["costo"] = u / q * p["cant"]; p["ts"] = f[0]["ts"]
+        print(f"{sim}: entrada {u / q:.6g} desde {pd.to_datetime(f[0]['ts'], unit='ms'):%Y-%m-%d}")
+    m.guardar(L)
+    print(s.texto_estado())
 
 
 def main(argv=None):
@@ -159,6 +177,8 @@ def main(argv=None):
         telegram_chat()
     elif c == "aporte":
         aporte(a[1], " ".join(a[2:]))
+    elif c == "reparar-entradas":
+        reparar_entradas()
     elif c == "alinear":
         alinear("--ejecutar" in a, "--sin-ajustes" in a)
     elif c == "prueba-transferencia":

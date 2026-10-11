@@ -631,7 +631,8 @@ class Motor:
         saldos = self.bolsa.saldos_spot()
         cand = [a for a in saldos if a not in self.ESTABLES]
         px = self.bolsa.precios_spot(cand)
-        L = dict(alts={}, btc=None, cortos={}, conflicto=False)
+        actual = self.libro
+        L = dict(alts={}, btc=None, cortos=actual["cortos"], conflicto=actual["conflicto"])
         descartadas = []
         ahora_ms = int(time.time() * 1000)
         for a in cand:
@@ -640,7 +641,11 @@ class Motor:
             if not p or v < minimo_usd:
                 descartadas.append(f"{a} ({usd(v)} USD)")
                 continue
-            pos = dict(cant=saldos[a], costo=v, ts=ahora_ms, reducida=False, adoptada=True)
+            previa = (actual["btc"] if a == "BTC" else actual["alts"].get(a)) or None
+            if previa and previa.get("cant"):          # ya estaba en el libro: se conserva su entrada y su fecha
+                pos = dict(previa, cant=saldos[a], costo=previa["costo"] * saldos[a] / previa["cant"])
+            else:
+                pos = dict(cant=saldos[a], costo=v, ts=ahora_ms, reducida=False, adoptada=True)
             if a == "BTC":
                 L["btc"] = pos
             else:
