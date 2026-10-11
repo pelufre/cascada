@@ -50,3 +50,58 @@ git pull && docker compose up -d --build                                    # ac
   monedas que existen en KuCoin; la amplitud se mide igual que en el backtest (top 50 con par en Binance).
 - Al arrancar, el estado de la amplitud se reconstruye con 200 días de historia usando el top 50 actual (el backtest
   usaba el de cada semana); desde ahí se guarda día a día.
+
+---
+
+# 30 balas 10x (servicio `balas10`)
+
+Corre al lado del Sistema 3, en la **misma cuenta de KuCoin y con las mismas claves**, y no se mezclan:
+- `balas10` sólo usa la posición **XBTUSDM** (futuro inverso, margen **aislado**) y el **BTC** de la cuenta de futuros.
+  Nunca compra ni vende en spot y nunca mueve USDT.
+- El Sistema 3 sólo cuenta USDT (spot y futuros) y posiciones USDT-M; no ve la posición inversa ni el BTC de futuros.
+- Por eso todo el capital de 30 balas que esté en el exchange tiene que estar **en BTC dentro de FUTUROS**.
+
+Reglas (fijas, `balas10/senales.py`; estudio `Balas10x_Segundo_Cargador_2026-10-09.md`, configuración D):
+capital de la campaña = BTC en futuros + BTC declarado afuera; cargador 1 = 40 % (30 balas a 10x), reserva = 40 %
+(mitad al abrir, resto si el precio queda a ≤ 12 % de la liquidación), cargador 2 = 20 % (30 balas que entran cuando se
+agota el 1 y van **enteras a margen**). Entrada: régimen semanal + RSI(2) 4h ≤ 15 + momento 90 d. Salida: cruce bajo la
+SMA80 4h (después de haber estado arriba) o régimen apagado al cierre diario. Señales con velas de Binance BTCUSDT.
+
+**Qué hace solo:** todos los aportes de margen (reserva, balas sólo-margen, cargador 2, emergencia a ≤ 5 % de la
+liquidación con todo el BTC libre). **Qué pregunta (`/si ID`):** abrir, comprar contratos de una recarga y cerrar.
+Si el cargador 2 está afuera, avisa cuánto depositar en FUTUROS; al llegar el depósito lo agrega solo (control cada 15 min).
+
+## Instalar (con el Sistema 3 ya funcionando)
+
+1. En KuCoin: la posición XBTUSDM en margen **aislado**; la reserva en **BTC en la cuenta de futuros** (libre).
+2. Bot de Telegram propio (para poder responder `/si`): @BotFather → `/newbot`. En `servidor/.env`:
+   `TELEGRAM_TOKEN_BALAS=…` (el chat sigue siendo `TELEGRAM_CHAT_ID`). Sin bot propio avisa por el del Sistema 3 y
+   se confirma con `python -m balas10.cli aprobar ID`.
+3. Bajar el código y construir **sólo** `balas10` (el Sistema 3 sigue corriendo, no se reinicia):
+   ```sh
+   cd /root/sistema3 && git fetch && git checkout balas10 && git pull
+   cd servidor && docker compose build balas10
+   docker compose run --rm balas10 python -m balas10.pruebas      # 36 comprobaciones sin red
+   docker compose run --rm balas10 python -m balas10.cli verificar
+   docker compose run --rm balas10 python -m balas10.cli plan
+   ```
+4. Adoptar la campaña abierta (primero sin `--ejecutar` para ver el plan):
+   ```sh
+   docker compose run --rm balas10 python -m balas10.cli adoptar --c1 0.25 --reserva 0.25 --c2-afuera 0.125 \
+       --balas 30 --desde AAAA-MM-DD
+   docker compose run --rm balas10 python -m balas10.cli adoptar --c1 0.25 --reserva 0.25 --c2-afuera 0.125 \
+       --balas 30 --desde AAAA-MM-DD --ejecutar
+   ```
+   `--desde` = día (UTC) en que empezó la campaña: sirve para saber si el precio ya cerró sobre la SMA80 4h (sin eso no
+   se activa la salida por SMA). Al ejecutar entra la mitad de la reserva como margen (regla de la configuración).
+5. Arrancar: `docker compose up -d balas10` y en Telegram `/estado`.
+
+Comandos de Telegram: `/estado`, `/pendiente`, `/si ID`, `/no ID`, `/afuera X`, `/pausar`, `/reanudar`, `/ayuda`.
+Al depositar el cargador 2 (o parte) en FUTUROS, actualizar `/afuera` con lo que sigue afuera.
+Logs: `docker compose logs -f balas10`. Configuración: `config/balas10.yaml`.
+
+**En KuCoin no activar el "depósito automático de margen"** de la posición: el bot lo apaga si lo encuentra activo.
+
+Diferencias con el backtest: el capital entre campañas queda en BTC (el backtest lo tenía en USDT): suma exposición a
+BTC cuando no hay posición. La reserva se controla cada 15 min con el precio de marca (el backtest, cada 4 h). Las
+decisiones con confirmación se ejecutan al precio del momento en que se aprueban.

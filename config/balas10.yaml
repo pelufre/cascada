@@ -1,0 +1,9 @@
+# 30 balas 10x con dos cargadores (XBTUSDM, futuro inverso, margen aislado). Reglas fijas en balas10/senales.py.
+modo: real                 # real | papel
+confirmar: true            # abrir, comprar contratos y cerrar esperan /si ID; los aportes de margen son automáticos
+vence_hora_local: "11:00"  # una decisión sin respuesta vence a esta hora (Argentina); vacío = usar vence_h
+vence_h: 12
+zona_horaria: America/Argentina/Buenos_Aires
+emergencia_dist: 0.05      # a ≤ 5 % de la liquidación: aviso crítico cada hora…
+emergencia_usar_libre: true  # …y todo el BTC libre de futuros entra como margen
+capital_papel_btc: 0.5     # sólo modo papel

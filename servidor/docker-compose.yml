@@ -15,6 +15,26 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
 
+  balas10:
+    # 30 balas 10x en XBTUSDM (futuro inverso, margen aislado). Misma cuenta y claves que sistema3; sólo usa BTC de futuros.
+    build:
+      context: ..
+      dockerfile: servidor/Dockerfile
+    command: ["python", "-m", "balas10.principal"]
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./datos:/app/datos
+      - ../config/balas10.yaml:/app/config/balas10.yaml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8081/salud',timeout=5).status==200 else 1)"]
+      interval: 60s
+      timeout: 10s
+      start_period: 180s
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
   caddy:
     image: caddy:2
     restart: unless-stopped
