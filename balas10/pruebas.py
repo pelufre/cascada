@@ -77,34 +77,37 @@ def prueba_adopcion_y_reserva():
     liq0 = b.posicion()["liq"]
     inf = m.control()
     p = b.posicion()
-    ok(abs(p["margen"] - (0.2653 + 0.125)) < 1e-6 and m.st["ini_puesta"], "adopción: entra la mitad de la reserva")
+    ok(abs(p["margen"] - (0.2653 + 0.125)) < 1e-6 and m.st["ini_puesta"], "adopción: entra la mitad del cargador 2")
     ok(p["liq"] < liq0 and p["marca"] / p["liq"] - 1 > 0.12, "adopción: la liquidación se aleja a más de 12 %")
-    ok(not m.st["resd"], "adopción: el resto de la reserva queda en espera")
+    ok(not m.st["resd"], "adopción: el resto del cargador 2 queda en espera")
     # caída hasta quedar a menos de 12 % de la liquidación
     px["v"] = p["liq"] * 1.10
     m.control()
     ok(m.st["resd"] and abs(b.posicion()["margen"] - (0.2653 + 0.25)) < 1e-6, "reserva: entra el resto al 12 %")
-    ok(any("resto de la reserva" in t for _, t in av), "reserva: avisa por Telegram")
+    ok(any("resto del cargador 2" in t for _, t in av), "reserva: avisa por Telegram")
 
 
 def prueba_cargador2_afuera():
     db, b, m, px, av = armar(btc=0.5, precio=84000)
     b.comprar(210000, 10)
     m.adoptar(0.25, 0.25, 0.125, 30, "2026-10-01", rec=True)
-    m.control()                                            # reserva inicial
-    b.st["libre"] = 0.125; b._g()                          # sólo queda el resto de la reserva
+    m.control()                                            # cargador 2 inicial
+    b.st["libre"] = 0.125; b._g()                          # sólo queda el resto del cargador 2
     m.senales = lambda t: senal()                          # día, régimen activo, sin salida
-    px["v"] = 90000                                        # ROE positivo → 1 bala, del cargador 2 (el 1 está agotado)
+    px["v"] = 90000                                        # ROE positivo: el cargador 1 está agotado y el 3 no entra
     inf, dec = m.ciclo(pd.Timestamp("2026-10-12"))
+    ok(dec is None and m.st["c2_debe"] == 0 and m.st["c2_usado"] == 0, "cargador 3: con ROE ≥ −10 % no entra")
+    px["v"] = 82500                                        # ROE ≈ −12 % → 6 balas del cargador 3
+    inf, dec = m.ciclo(pd.Timestamp("2026-10-13"))
     s = m.st
-    ok(dec is None and s["c2_debe"] > 0 and abs(s["c2_debe"] - 0.125 / 30) < 1e-9, "cargador 2: queda la deuda de 1 bala")
-    ok(abs(b.st["libre"] - 0.125) < 1e-9, "cargador 2: no toca la reserva")
-    ok(any("cargador 2" in t for n, t in av if n == "alta"), "cargador 2: pide el depósito")
+    ok(dec is None and abs(s["c2_debe"] - 6 * 0.125 / 30) < 1e-9, "cargador 3: con ROE < −10 % quedan 6 balas pedidas")
+    ok(abs(b.st["libre"] - 0.125) < 1e-9, "cargador 3: no toca el cargador 2")
+    ok(any("cargador 3" in t for n, t in av if n == "alta"), "cargador 3: pide el depósito")
     b.depositar(0.125)
     m.control()
     s = m.st
-    ok(s["c2_debe"] < 1e-9 and abs(s["c2_usado"] - 0.125 / 30) < 1e-9, "cargador 2: al depositar entra solo")
-    ok(abs(s["afuera"] - (0.125 - 0.125 / 30)) < 1e-9, "cargador 2: descuenta lo que estaba afuera")
+    ok(s["c2_debe"] < 1e-9 and abs(s["c2_usado"] - 6 * 0.125 / 30) < 1e-9, "cargador 3: al depositar entra solo")
+    ok(abs(s["afuera"] - (0.125 - 6 * 0.125 / 30)) < 1e-9, "cargador 3: descuenta lo que estaba afuera")
 
 
 def prueba_salida_y_entrada():
@@ -116,7 +119,7 @@ def prueba_salida_y_entrada():
     s = m.st
     p = b.posicion()
     ok(s["activo"] and abs(s["Wc"] - 1.0) < 1e-6, "entrada: capital de la campaña = BTC en futuros")
-    ok(abs(p["margen"] - (0.4 / 30 + 0.4 * 0.5)) < 1e-6, "entrada: 1 bala + mitad de la reserva como margen")
+    ok(abs(p["margen"] - (0.4 / 30 + 0.4 * 0.5)) < 1e-6, "entrada: 1 bala + mitad del cargador 2 como margen")
     ok(abs(p["contratos"] - round(0.4 / 30 * 10 * 80000)) <= 1, "entrada: contratos = bala × 10x × precio")
     # sube sobre la SMA y luego cruza abajo → salida
     m.senales = lambda t: senal(dia=False, sobre=True, sobre_previa=False)
@@ -174,7 +177,7 @@ def prueba_emergencia():
     m.adoptar(0.25, 0.25, 0.125, 30, "2026-10-01", rec=True)
     m.control()
     px["v"] = b.posicion()["liq"] * 1.11
-    m.control()                                             # resto de la reserva
+    m.control()                                             # resto del cargador 2
     px["v"] = b.posicion()["liq"] * 1.04
     libre = b.st["libre"]
     m.control()

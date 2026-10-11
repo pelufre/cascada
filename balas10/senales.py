@@ -10,7 +10,7 @@ se actualizan con el cierre diario de las 00:00 UTC y valen hasta el próximo ci
              (cierre anterior sobre su SMA, cierre actual debajo), o al cierre diario el régimen está apagado.
   Recarga:   al cierre diario, según el ROE de la campaña: ≥0 → 1 bala; ≥−5% → 2; ≥−10% → 4; ≥−15% → 6; peor → 8.
              Proporción a posición: ROE ≥ −10% → 100%; ≥ −20% → 70%; ≥ −30% → 40%; peor → 0% (el resto, sólo margen).
-             Cuando el cargador 1 se agota, las balas salen del cargador 2 y van enteras a margen.
+             Cuando el cargador 1 se agota y el ROE es < −10 %, las balas salen del cargador 3 y van enteras a margen.
   Apalancamiento de cada bala = 10 × min(1, max(0,33, 0,60 / volatilidad anual de 60 días)) × (0,5 si precio/SMA200 > 2,2).
 """
 import math
@@ -22,10 +22,11 @@ P = dict(
     lev=10.0,          # apalancamiento base
     B1=30, B2=30,      # balas de cada cargador
     f1=0.40,           # cargador 1 (fracción del capital de la campaña)
-    fr=0.40,           # reserva de margen
-    f2=0.20,           # cargador 2 (sólo margen)
+    fr=0.40,           # cargador 2: reserva de margen
+    f2=0.20,           # cargador 3 (sólo margen)
+    c3_roe=-0.10,      # el cargador 3 entra sólo si el ROE de la campaña es < −10 % (None = siempre que el 1 esté agotado)
     pref=0.50,         # parte de la reserva que se pone al abrir
-    rt=0.12,           # el resto de la reserva entra si la distancia a la liquidación es ≤ 12 %
+    rt=0.12,           # el resto del cargador 2 entra si la distancia a la liquidación es ≤ 12 %
     init=1,            # balas iniciales
     rsi_max=15.0, ma=80, ema_sem=20, pendiente=4,
     vt_dias=60, vt_obj=0.60, vt_piso=0.33, mayer=2.2, mayer_mult=0.5, mom=90,

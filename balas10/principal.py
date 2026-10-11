@@ -29,7 +29,7 @@ AYUDA = """30 balas 10x — comandos:
 /pendiente – la decisión que espera confirmación
 /si ID – ejecutar la decisión ID
 /no ID – descartar la decisión ID
-/afuera X – BTC del cargador 2 que siguen fuera del exchange (p. ej. /afuera 0.125)
+/afuera X – BTC del cargador 3 que siguen fuera del exchange (p. ej. /afuera 0.125)
 /pausar – no abre, no compra y no cierra (los aportes de margen siguen)
 /reanudar – vuelve a operar
 /ayuda – esta lista"""

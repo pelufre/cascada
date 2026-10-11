@@ -3,10 +3,10 @@
   verificar                  prueba Binance, KuCoin (posición XBTUSDM y BTC de futuros) y Telegram
   plan                       señal de la última vela cerrada y lo que haría, SIN operar
   estado                     posición, liquidación, balas, reserva y señal
-  adoptar --c1 0.25 --reserva 0.25 --c2-afuera 0.125 --balas 30 --desde 2026-10-01 [--reserva-inicial-puesta] [--ejecutar]
+  adoptar --c1 0.25 --c2 0.25 --c3-afuera 0.125 --balas 30 --desde 2026-10-01 [--c2-mitad-puesta] [--ejecutar]
                              toma la campaña abierta en KuCoin (sin --ejecutar sólo muestra el plan)
   aprobar ID / rechazar ID   confirma o descarta la decisión pendiente (si no hay bot propio de Telegram)
-  afuera X                   BTC del cargador 2 que siguen fuera del exchange
+  afuera X                   BTC del cargador 3 que siguen fuera del exchange
   telegram-chat              muestra el chat_id de quien le escribió al bot propio (TELEGRAM_TOKEN_BALAS)
 """
 import argparse
@@ -72,15 +72,15 @@ def adoptar(a):
     print(f"Cuenta de futuros: equity {cuenta['equity']:.4f} BTC · libre {cuenta['libre']:.4f} BTC")
     p = m.p
     falta = a.reserva * (0 if a.reserva_inicial_puesta else 1)
-    print(f"Capital de la campaña: cargador 1 {a.c1} + reserva {a.reserva} + cargador 2 {a.c2_afuera} (afuera) = "
+    print(f"Capital de la campaña: cargador 1 {a.c1} + cargador 2 {a.reserva} + cargador 3 {a.c2_afuera} (afuera) = "
           f"{a.c1 + a.reserva + a.c2_afuera:.4f} BTC · balas usadas {a.balas}/{p['B1']}")
     if cuenta["libre"] < falta - 1e-6:
-        print(f"ATENCIÓN: la reserva ({falta} BTC) tiene que estar libre en FUTUROS y hay {cuenta['libre']:.4f}.")
+        print(f"ATENCIÓN: el cargador 2 ({falta} BTC) tiene que estar libre en FUTUROS y hay {cuenta['libre']:.4f}.")
     if not a.reserva_inicial_puesta:
         q = a.reserva * p["pref"]
         m_nuevo = pos["margen"] + q
         liq = pos["contratos"] * 1.007 / (m_nuevo + pos["contratos"] / pos["entrada"])
-        print(f"Al adoptar entra la mitad de la reserva como margen: +{q:.4f} BTC → margen {m_nuevo:.4f}, "
+        print(f"Al adoptar entra la mitad del cargador 2 como margen: +{q:.4f} BTC → margen {m_nuevo:.4f}, "
               f"liquidación ≈ {liq:,.0f} ({pos['marca'] / liq - 1:+.1%} desde la marca).")
     if not a.ejecutar:
         print("\nPlan solamente. Para adoptar: agregar --ejecutar")
@@ -122,11 +122,11 @@ def main():
         sub.add_parser(c)
     ad = sub.add_parser("adoptar")
     ad.add_argument("--c1", type=float, required=True)
-    ad.add_argument("--reserva", type=float, required=True)
-    ad.add_argument("--c2-afuera", type=float, required=True)
+    ad.add_argument("--c2", dest="reserva", type=float, required=True, help="cargador 2 (reserva de margen) en BTC")
+    ad.add_argument("--c3-afuera", dest="c2_afuera", type=float, required=True, help="cargador 3 fuera del exchange, BTC")
     ad.add_argument("--balas", type=int, required=True)
     ad.add_argument("--desde", required=True, help="fecha (UTC) en que empezó la campaña, p. ej. 2026-10-01")
-    ad.add_argument("--reserva-inicial-puesta", action="store_true")
+    ad.add_argument("--c2-mitad-puesta", dest="reserva_inicial_puesta", action="store_true")
     ad.add_argument("--ejecutar", action="store_true")
     for c in ("aprobar", "rechazar"):
         x = sub.add_parser(c); x.add_argument("id")

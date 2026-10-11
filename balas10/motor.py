@@ -1,11 +1,13 @@
 """Motor de 30 balas 10x con dos cargadores en XBTUSDM (futuro inverso, margen aislado).
 
 Capital (BTC) de cada campaña, fijado al abrirla: Wc = BTC en la cuenta de futuros + BTC declarado afuera.
-  cargador 1 = 40 % Wc (30 balas a posición) · reserva = 40 % Wc (mitad al abrir, resto al 12 % de la liquidación) ·
-  cargador 2 = 20 % Wc (30 balas, sólo margen; puede estar afuera del exchange: el bot pide el depósito).
+  cargador 1 = 40 % Wc (30 balas a posición) · cargador 2 = reserva de margen, 40 % Wc (mitad al abrir, resto al 12 % de
+  la liquidación) · cargador 3 = 20 % Wc (30 balas sólo de margen, cuando el 1 está agotado y el ROE de la campaña es
+  < −10 %; puede estar afuera del exchange: el bot pide el depósito).
+  En el código: c1 = cargador 1, r = cargador 2 (reserva), c2 = cargador 3.
 
 Qué hace solo y qué pregunta:
-  · Solo (sin confirmación): todos los aportes de MARGEN (reserva inicial y resto, balas sólo-margen, cargador 2,
+  · Solo (sin confirmación): todos los aportes de MARGEN (cargador 2 inicial y resto, balas sólo-margen, cargador 3,
     emergencia cerca de la liquidación).
   · Con confirmación (/si ID): abrir campaña, comprar contratos de una recarga y cerrar.
 
@@ -195,16 +197,17 @@ class Motor:
         B1, B2 = self.p["B1"], self.p["B2"]
         a1 = min(add, B1 - u1)
         a2 = 0
-        if u1 + a1 >= B1:
+        roe_c3 = self.p.get("c3_roe")
+        if u1 + a1 >= B1 and (roe_c3 is None or roe < roe_c3):
             a2 = min(add - a1 if a1 > 0 else add, B2 - u2)
         if a1 + a2 <= 0:
             return None
         b1, b2 = self.bala1(s), self.bala2(s)
         m1 = b1 * a1 * (1 - ratio)               # parte sólo-margen del cargador 1
         p1 = b1 * a1 * ratio                     # parte a posición (requiere OK)
-        m2 = b2 * a2                             # cargador 2: todo a margen
+        m2 = b2 * a2                             # cargador 3: todo a margen
         texto = f"ROE {pct(roe)}: {add} balas" + (f" (cargador 1: {a1}, {ratio:.0%} a posición)" if a1 else "") + \
-                (f" (cargador 2: {a2}, sólo margen)" if a2 else "")
+                (f" (cargador 3: {a2}, sólo margen)" if a2 else "")
         informe.append("Recarga diaria · " + texto)
         if m1 > POLVO:
             cuenta = self.bolsa.cuenta()
@@ -215,12 +218,12 @@ class Motor:
         if m2 > POLVO:
             cuenta = self.bolsa.cuenta()
             disp = self.libre_para_c2(s, cuenta["libre"])
-            hecho = self._margen(s, min(m2, disp), f"{a2} balas del cargador 2", informe)
+            hecho = self._margen(s, min(m2, disp), f"{a2} balas del cargador 3", informe)
             s["c2_usado"] += hecho
             falta = m2 - hecho
             if falta > POLVO:
                 s["c2_debe"] += falta
-                self.avisar("alta", f"30 balas: el cargador 2 tiene que aportar {btc(falta, 5)} BTC de margen y no están en la "
+                self.avisar("alta", f"30 balas: el cargador 3 tiene que aportar {btc(falta, 5)} BTC de margen y no están en la "
                                     f"cuenta de futuros (deuda acumulada {btc(s['c2_debe'], 5)} BTC). Depositá BTC en FUTUROS: "
                                     f"el bot lo agrega solo en el próximo control (15 min). Afuera declarados: {btc(s['afuera'], 4)} BTC.")
         self.guardar(s)
@@ -245,29 +248,29 @@ class Motor:
         dist = pos["marca"] / pos["liq"] - 1 if pos["liq"] else None
         if not s["ini_puesta"]:
             q = s["r"] * self.p["pref"] - s["ini_aportado"]
-            hecho = self._margen(s, min(q, cuenta["libre"]), "reserva inicial", informe)
+            hecho = self._margen(s, min(q, cuenta["libre"]), "cargador 2 inicial", informe)
             s["ini_aportado"] += hecho
             if hecho >= q - POLVO:
                 s["ini_puesta"] = True
             else:
-                self.avisar("alta", f"30 balas: faltan {btc(q - hecho, 5)} BTC de la reserva inicial en la cuenta de futuros.")
+                self.avisar("alta", f"30 balas: faltan {btc(q - hecho, 5)} BTC de la cargador 2 inicial en la cuenta de futuros.")
             self.guardar(s)
             pos = self.bolsa.posicion(); cuenta = self.bolsa.cuenta()
             dist = pos["marca"] / pos["liq"] - 1 if pos and pos["liq"] else dist
         if not s["resd"] and dist is not None and dist <= self.p["rt"]:
             q = s["r"] * (1 - self.p["pref"])
-            hecho = self._margen(s, min(q, cuenta["libre"]), f"resto de la reserva (a {pct(dist)} de la liquidación)", informe)
+            hecho = self._margen(s, min(q, cuenta["libre"]), f"resto del cargador 2 (a {pct(dist)} de la liquidación)", informe)
             s["resd"] = True
             self.guardar(s)
-            self.avisar("alta", f"30 balas: el precio quedó a {pct(dist)} de la liquidación; entró el resto de la reserva "
+            self.avisar("alta", f"30 balas: el precio quedó a {pct(dist)} de la liquidación; entró el resto del cargador 2 "
                                 f"({btc(hecho, 5)} BTC).")
             if hecho < q - POLVO:
-                self.avisar("critica", f"30 balas: faltaron {btc(q - hecho, 5)} BTC de la reserva en la cuenta de futuros.")
+                self.avisar("critica", f"30 balas: faltaron {btc(q - hecho, 5)} BTC del cargador 2 en la cuenta de futuros.")
             pos = self.bolsa.posicion(); cuenta = self.bolsa.cuenta()
             dist = pos["marca"] / pos["liq"] - 1 if pos and pos["liq"] else dist
         if s["c2_debe"] > POLVO:
             disp = self.libre_para_c2(s, cuenta["libre"])
-            hecho = self._margen(s, min(s["c2_debe"], disp), "cargador 2 (depósito pendiente)", informe)
+            hecho = self._margen(s, min(s["c2_debe"], disp), "cargador 3 (depósito pendiente)", informe)
             if hecho > 0:
                 s["c2_debe"] -= hecho; s["c2_usado"] += hecho
                 s["afuera"] = max(s["afuera"] - hecho, 0.0)
@@ -334,7 +337,7 @@ class Motor:
         hace_falta = b1 + r * p["pref"]
         if cuenta["libre"] < hace_falta * 1.002:
             raise RuntimeError(f"No alcanza el BTC en futuros para abrir: hacen falta {btc(hace_falta, 5)} "
-                               f"(bala + mitad de la reserva) y hay {btc(cuenta['libre'], 5)} libres")
+                               f"(bala + mitad del cargador 2) y hay {btc(cuenta['libre'], 5)} libres")
         f = self.bolsa.comprar(n, p["lev"])
         s.update(activo=True, inicio=str(ahora()), Wc=Wc, c1=c1, r=r, c2=c2, c1_usado=b1, c2_usado=0.0, c2_debe=0.0,
                  ini_puesta=False, ini_aportado=0.0, resd=p["pref"] >= 1, rec=bool(dec.get("rec")))
@@ -343,7 +346,7 @@ class Motor:
             self._op("compra", f["contratos"], f["precio"], "inicio de campaña", f["orden"])
             informe.append(f"nueva campaña: {int(f['contratos'])} contratos a {usd(f['precio'])} "
                            f"({p['lev'] * dec['levm']:.2f}x) · capital {btc(Wc)} BTC "
-                           f"(cargador 1 {btc(c1)}, reserva {btc(r)}, cargador 2 {btc(c2)})")
+                           f"(cargador 1 {btc(c1)}, cargador 2 {btc(r)}, cargador 3 {btc(c2)})")
             tomado = f["contratos"] / f["precio"] / p["lev"]
             self._margen(s, b1 - tomado, "completar margen de la bala", informe)
 
@@ -440,7 +443,7 @@ class Motor:
     def texto_decision(self, dec):
         t = dec["tipo"]
         if t == "entrada":
-            return f"ABRIR campaña ({dec['motivo']}): 1 bala a {self.p['lev'] * dec['levm']:.2f}x + mitad de la reserva como margen"
+            return f"ABRIR campaña ({dec['motivo']}): 1 bala a {self.p['lev'] * dec['levm']:.2f}x + mitad del cargador 2 como margen"
         if t == "salida":
             return f"CERRAR la campaña ({dec['motivo']})"
         if t == "salida+entrada":
@@ -469,9 +472,9 @@ class Motor:
             lin += [f"Campaña desde {str(s['inicio'])[:16]} · {int(pos['contratos'])} contratos · entrada {usd(pos['entrada'])} · "
                     f"marca {usd(pos['marca'])}",
                     f"Liquidación {usd(pos['liq'])} ({pct(dist)}) · margen {btc(pos['margen'])} BTC · ROE {pct(pos['pnl'] / pos['margen'] if pos['margen'] else None)}",
-                    f"Cargador 1 {u1}/{self.p['B1']} · cargador 2 {u2}/{self.p['B2']}"
+                    f"Cargador 1 {u1}/{self.p['B1']} · cargador 3 {u2}/{self.p['B2']}"
                     + (f" (debe {btc(s['c2_debe'], 5)} BTC)" if s["c2_debe"] > POLVO else "")
-                    + f" · reserva: inicial {'puesta' if s['ini_puesta'] else 'pendiente'}, resto {'puesto' if s['resd'] else 'en espera'}",
+                    + f" · cargador 2 (reserva): mitad {'puesta' if s['ini_puesta'] else 'pendiente'}, resto {'puesto' if s['resd'] else 'en espera'}",
                     f"Cruzó sobre la SMA{self.p['ma']}: {'sí' if s['rec'] else 'no'} (la salida por SMA se activa después)"]
         else:
             lin.append("Sin campaña abierta")
