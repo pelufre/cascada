@@ -1,10 +1,12 @@
 """Web del Sistema 3 (servidor HTTP de la biblioteca estándar, Basic Auth, detrás de Caddy con HTTPS).
-Sólo lectura, salvo confirmar o descartar la decisión pendiente y pausar o reanudar."""
+Sólo lectura, salvo confirmar o descartar la decisión pendiente y pausar o reanudar.
+La pestaña «30 balas» lee la base del servicio balas10 (misma carpeta de datos), también sólo lectura."""
 import base64
 import hmac
 import json
 import logging
 import queue
+import sqlite3
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,6 +16,7 @@ from urllib.parse import parse_qs, urlparse
 import pandas as pd
 
 from . import estadisticas as ES
+from .config import DATOS
 from .senales import NIVELES
 
 log = logging.getLogger("sistema3.web")
@@ -90,6 +93,46 @@ def datos_operaciones(s, limite):
     return dict(operaciones=ops, cerradas=cer)
 
 
+def datos_balas10():
+    """Estado de 30 balas 10x desde su base (balas10_<modo>.db), abierta en sólo lectura: el Sistema 3 no escribe nada."""
+    rutas = sorted(DATOS.glob("balas10_*.db"), key=lambda p: p.stat().st_mtime)
+    if not rutas:
+        return dict(hay=False)
+    cx = sqlite3.connect(rutas[-1].resolve().as_uri() + "?mode=ro", uri=True, timeout=10)
+    cx.row_factory = sqlite3.Row
+    try:
+        q = lambda sql, a=(): [dict(r) for r in cx.execute(sql, a).fetchall()]
+        kv = {r["clave"]: json.loads(r["valor"]) for r in q("SELECT clave, valor FROM estado")}
+        dec = q("SELECT id, ts, vela, tipo, estado, resumen, vence_ts, resultado FROM decisiones ORDER BY ts DESC LIMIT 40")
+        ops = q("SELECT ts, lado, cantidad, precio, usdt, motivo, modo FROM operaciones ORDER BY id DESC LIMIT 100")
+        inc = q("SELECT ts, nivel, tipo, mensaje, resuelta FROM incidencias ORDER BY id DESC LIMIT 60")
+        pat = q("SELECT ts, total, futuros FROM patrimonio WHERE ts >= ? ORDER BY ts", (int((time.time() - 90 * 86400) * 1000),))
+    finally:
+        cx.close()
+    for x in dec:
+        x["fecha"] = ES.ts(x["ts"]); x["vence"] = ES.ts(x["vence_ts"]) if x["vence_ts"] else ""
+    for o in ops:
+        o["fecha"] = ES.ts(o["ts"])
+        o["btc"] = o["usdt"] / o["precio"] if o["lado"] == "margen" and o["precio"] else None
+    for x in inc:
+        x["fecha"] = ES.ts(x["ts"])
+    if len(pat) > 1500:
+        pat = pat[::len(pat) // 1500 + 1] + pat[-1:]
+    s, f = kv.get("balas10") or {}, kv.get("foto") or {}
+    pos = f.get("pos")
+    f["dist"] = pos["marca"] / pos["liq"] - 1 if pos and pos.get("liq") else None
+    f["roe"] = pos["pnl"] / pos["margen"] if pos and pos.get("margen") else None
+    f["resultado"] = f["total_btc"] / s["Wc"] - 1 if s.get("activo") and s.get("Wc") and f.get("total_btc") else None
+    campana = {k: s.get(k) for k in ("activo", "inicio", "Wc", "c1", "r", "c2", "c1_usado", "c2_usado", "c2_debe",
+                                     "ini_puesta", "resd", "rec", "afuera", "campanas", "liquidaciones")}
+    return dict(hay=True, ahora=time.time(), version=kv.get("version"), pausado=bool(kv.get("pausado")),
+                latido=kv.get("latido"), ultimo_ciclo=kv.get("ultimo_ciclo"), campana=campana, foto=f,
+                senal=s.get("ultima_senal"), resultados=(s.get("resultado_campanas") or [])[-20:],
+                decisiones=dec, operaciones=ops, incidencias=inc,
+                serie=dict(t=[ES.ts(x["ts"]) for x in pat], btc=[x["futuros"] for x in pat],
+                           usd=[round(x["total"], 2) for x in pat]))
+
+
 class Manejador(BaseHTTPRequestHandler):
     servicio = None
     server_version = "sistema3"
@@ -149,6 +192,8 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._enviar(200, _cacheado(("pat", r), 30, lambda: datos_patrimonio(s, r)))
             if u.path == "/api/operaciones":
                 return self._enviar(200, datos_operaciones(s, min(int(q.get("limite", ["300"])[0]), 5000)))
+            if u.path == "/api/balas10":
+                return self._enviar(200, _cacheado("balas10", 15, datos_balas10))
             return self._enviar(404, dict(error="no existe"))
         except Exception as e:
             log.exception("web %s", u.path)

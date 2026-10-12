@@ -33,11 +33,13 @@ canvas{max-height:320px}.two{display:grid;gap:12px;grid-template-columns:1fr}@me
 .m-ALTS{color:var(--alts)}.m-BTC{color:var(--btc)}.m-USDT{color:var(--usdt)}
 .pend{border-color:var(--ac);border-width:2px}.pend pre{white-space:pre-wrap;font:inherit;margin:8px 0}
 .strip{display:flex;gap:2px;margin-top:8px}.strip span{flex:1;height:14px;border-radius:2px}
+.k .s{color:var(--mu);font-size:12px;margin-top:2px}.lst{margin:0;padding-left:18px}.lst li{margin:4px 0}
+.avi{border-color:var(--wa);border-width:2px}.avi.ko{border-color:var(--ko)}
 </style>
 </head>
 <body>
 <header><h1>Sistema 3</h1><span id="hModo" class="est"></span><span id="hCuenta" class="est"></span><span id="hFlags"></span>
-<span style="flex:1"></span><button class="b" onclick="cmd('pausar')">Pausar</button><button class="b" onclick="cmd('reanudar')">Reanudar</button></header>
+<span style="flex:1"></span><span id="hBtns"><button class="b" onclick="cmd('pausar')">Pausar</button> <button class="b" onclick="cmd('reanudar')">Reanudar</button></span></header>
 <nav id="nav"></nav>
 <main>
 <section class="sec on" id="s-resumen">
@@ -48,6 +50,30 @@ canvas{max-height:320px}.two{display:grid;gap:12px;grid-template-columns:1fr}@me
   <div class="card"><div class="btns" id="rangos"></div><canvas id="cEq"></canvas></div>
   <div class="two"><div class="card"><h2>Caída desde el máximo</h2><canvas id="cDD"></canvas></div>
   <div class="card"><h2>Exposición (fracción del capital)</h2><canvas id="cEx"></canvas></div></div>
+</section>
+<section class="sec" id="s-balas10">
+  <div class="card"><div class="modo"><div><div class="mu">30 balas 10x · XBTUSDM</div><div class="big" id="bBig">—</div></div>
+    <div class="mu" id="bTxt"></div></div></div>
+  <div id="bAviso"></div>
+  <div class="grid" id="bK"></div>
+  <div class="two"><div class="card"><h2>Cargadores</h2><div id="bCarg"></div></div>
+  <div class="card"><h2>Señal de la última vela de 4 h</h2><div class="tw" id="bSen"></div></div></div>
+  <div class="card"><h2>Capital de la estrategia</h2><canvas id="cB10"></canvas></div>
+  <div class="card"><h2>Decisiones</h2><div class="tw" id="tBDec"></div></div>
+  <div class="card"><h2>Órdenes y aportes de margen</h2><div class="tw" id="tBOps"></div></div>
+  <div class="two"><div class="card"><h2>Campañas cerradas</h2><div class="tw" id="tBCam"></div></div>
+  <div class="card"><h2>Incidencias</h2><div class="tw" id="tBInc"></div></div></div>
+  <div class="card"><h2>Reglas (fijas)</h2>
+  <p><b>Capital de la campaña</b> = BTC en la cuenta de futuros + BTC declarado afuera, fijado al abrir.
+  <b>Cargador 1</b> = 40 % (30 balas a 10x). <b>Cargador 2</b> = 40 %, reserva de margen: la mitad al abrir y el resto si el
+  precio queda a 12 % o menos de la liquidación. <b>Cargador 3</b> = 20 % (30 balas sólo de margen): entra cuando el cargador 1
+  está agotado y el ROE de la campaña es menor a −10 %.</p>
+  <p><b>Entrada:</b> régimen semanal alcista + RSI(2) de 4 h ≤ 15 + momento de 90 días positivo.
+  <b>Salida:</b> una vela de 4 h que cierra bajo la SMA80 después de haber estado arriba, o el régimen apagado al cierre diario.
+  <b>Recarga</b> diaria según el ROE. <b>Emergencia:</b> a 5 % o menos de la liquidación entra todo el BTC libre como margen.</p>
+  <p class="mu">Señales con velas de Binance BTCUSDT; ejecución en KuCoin XBTUSDM (futuro inverso, margen aislado). La página se
+  actualiza sola cada minuto; el bot guarda la foto de la cuenta cada 2 minutos. Los botones Pausar y Reanudar son del
+  Sistema 3 y no actúan sobre esta estrategia.</p></div>
 </section>
 <section class="sec" id="s-posiciones"><div class="card"><h2>Posiciones abiertas</h2><div class="tw" id="tPos"></div></div></section>
 <section class="sec" id="s-operaciones">
@@ -83,7 +109,7 @@ canvas{max-height:320px}.two{display:grid;gap:12px;grid-template-columns:1fr}@me
 </section>
 </main>
 <script>
-const SEC=[["resumen","Resumen"],["posiciones","Posiciones"],["operaciones","Operaciones"],["rendimiento","Rendimiento"],["decisiones","Decisiones"],["incidencias","Incidencias"],["sistema","Sistema"]];
+const SEC=[["resumen","Resumen"],["balas10","30 balas"],["posiciones","Posiciones"],["operaciones","Operaciones"],["rendimiento","Rendimiento"],["decisiones","Decisiones"],["incidencias","Incidencias"],["sistema","Sistema"]];
 const $=id=>document.getElementById(id);
 const P=(x,d=1)=>x==null?"—":(x*100).toFixed(d).replace(".",",")+" %";
 const PS=(x,d=1)=>x==null?"—":(x>0?"+":"")+P(x,d);
@@ -91,9 +117,11 @@ const N=(x,d=0)=>x==null?"—":Number(x).toLocaleString("es-AR",{minimumFraction
 const PX=x=>x==null?"—":(x>=100?N(x,2):x>=1?N(x,4):Number(x).toPrecision(4));
 const C=x=>x==null?"":x>0?"pos":x<0?"neg":"";
 const esc=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-let rango="30d",charts={},D=null;
+const B=(x,d=4)=>x==null?"—":N(x,d)+" BTC";
+const hace=(t,ahora)=>{if(!t)return"sin datos";const m=Math.round((ahora-t)/60);return m<1?"hace menos de 1 min":m<90?`hace ${m} min`:`hace ${N(m/60,1)} h`};
+let rango="30d",charts={},D=null,tab="resumen";
 $("nav").innerHTML=SEC.map(([k,t])=>`<button data-k="${k}" class="${k=="resumen"?"on":""}">${t}</button>`).join("");
-$("nav").onclick=e=>{const k=e.target.dataset.k;if(!k)return;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.k==k));document.querySelectorAll(".sec").forEach(s=>s.classList.toggle("on",s.id=="s-"+k));if(k=="operaciones")ops()};
+$("nav").onclick=e=>{const k=e.target.dataset.k;if(!k)return;tab=k;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.k==k));document.querySelectorAll(".sec").forEach(s=>s.classList.toggle("on",s.id=="s-"+k));$("hBtns").style.display=k=="balas10"?"none":"";if(k=="operaciones")ops();if(k=="balas10")b10()};
 $("rangos").innerHTML=["7d","30d","90d","365d","todo"].map(r=>`<button data-r="${r}" class="${r==rango?"on":""}">${r=="todo"?"Todo":r.replace("d"," días")}</button>`).join("");
 $("rangos").onclick=e=>{const r=e.target.dataset.r;if(!r)return;rango=r;document.querySelectorAll("#rangos button").forEach(b=>b.classList.toggle("on",b.dataset.r==r));pat()};
 function tabla(cols,filas){return `<table><tr>${cols.map(c=>`<th class="${c[2]||""}">${c[0]}</th>`).join("")}</tr>${filas.map(f=>`<tr>${cols.map(c=>{const v=c[1](f);return `<td class="${c[2]||""} ${c[3]?c[3](f):""}">${v}</td>`}).join("")}</tr>`).join("")||`<tr><td class="mu" colspan="${cols.length}">Sin datos</td></tr>`}</table>`}
@@ -134,7 +162,58 @@ async function ops(){
   $("tCer").innerHTML=tabla([["Tipo",x=>x.parte=="A"?"Largo":"Corto"],["Moneda",x=>"<b>"+x.simbolo+"</b>"],["Abierta",x=>x.abierto],["Cerrada",x=>x.cerrado],["Entrada",x=>PX(x.entrada),"n"],["Salida",x=>PX(x.salida),"n"],["Invertido",x=>N(x.invertido),"n"],["Resultado",x=>N(x.pnl,2),"n",x=>C(x.pnl)],["%",x=>PS(x.pnl_pct),"n",x=>C(x.pnl_pct)],["Motivo",x=>esc(x.motivo)]],d.cerradas);
   $("tOps").innerHTML=tabla([["Hora (UTC)",x=>x.fecha],["Cuenta",x=>x.parte=="A"?"Spot":"Futuros"],["Moneda",x=>x.simbolo],["Lado",x=>x.lado],["Cantidad",x=>N(x.cantidad,4),"n"],["Precio",x=>PX(x.precio),"n"],["USDT",x=>N(x.usdt,2),"n"],["Comisión",x=>N(x.comision,3),"n"],["Motivo",x=>esc(x.motivo)],["",x=>x.modo=="papel"?'<span class="tag">papel</span>':""]],d.operaciones);
 }
-async function ciclo(){try{await todo();await pat()}catch(e){console.error(e)}}
+async function b10(){
+  try{
+  const d=await j("/api/balas10");
+  if(!d.hay){$("bBig").textContent="Sin datos";$("bTxt").textContent="El bot de 30 balas todavía no guardó nada.";return}
+  const cp=d.campana,fo=d.foto,po=fo.pos,cu=fo.cuenta||{},sg=d.senal,pr=fo.p||{B1:30,B2:30,lev:10,ma:80,rt:.12},u=fo.balas||[0,0];
+  $("bBig").innerHTML=cp.activo?'<span class="pos">EN CAMPAÑA</span>':'<span class="mu">SIN CAMPAÑA</span>';
+  $("bTxt").textContent=[fo.modo?(fo.modo=="papel"?"Papel":"Real"):"",fo.modo?(fo.confirmar?"con confirmación":"automático"):"",
+    cp.activo&&cp.inicio?"campaña desde "+String(cp.inicio).slice(0,10):"","datos de la cuenta "+hace(fo.ts,d.ahora),
+    d.ultimo_ciclo?"última vela "+String(d.ultimo_ciclo.vela).slice(5,16)+" UTC":"",d.version?"versión "+d.version:""].filter(Boolean).join(" · ");
+  const av=[];
+  if(d.pausado)av.push(["ko","EN PAUSA: no abre, no compra ni cierra. Los aportes de margen siguen."]);
+  if(!d.latido||d.ahora-d.latido>300)av.push(["ko","El bot no da señales de vida: último latido "+hace(d.latido,d.ahora)+"."]);
+  else if(!fo.ts)av.push(["","Todavía no hay datos de la cuenta: el bot los guarda cada 2 minutos."]);
+  else if(d.ahora-fo.ts>600)av.push(["","Los datos de la posición son viejos: "+hace(fo.ts,d.ahora)+"."]);
+  if(d.ultimo_ciclo&&d.ultimo_ciclo.error)av.push(["ko","Error en el último ciclo: "+esc(d.ultimo_ciclo.error)]);
+  if(fo.dist!=null&&fo.dist<=0.05)av.push(["ko",`El precio está a ${P(fo.dist)} de la liquidación.`]);
+  $("bAviso").innerHTML=av.map(([k,t])=>`<div class="card avi ${k}">${t}</div>`).join("");
+  const K=[["Capital",B(fo.total_btc),"",fo.total_usd!=null?"≈ "+N(fo.total_usd)+" USD":""],
+    ["Resultado de la campaña",PS(fo.resultado),C(fo.resultado),"en BTC, contra el capital inicial"],
+    ["ROE de la posición",PS(fo.roe),C(fo.roe),po?"PnL "+B(po.pnl,5):""],
+    ["Liquidación",po?N(po.liq):"—","",fo.dist!=null?"a "+P(fo.dist)+" del precio":""],
+    ["Precio (marca)",po?N(po.marca,1):fo.precio!=null?N(fo.precio,1):"—"],
+    ["Entrada",po?N(po.entrada,1):"—"],
+    ["Contratos",po?N(po.contratos):"—","",po&&po.apalancamiento?N(po.apalancamiento,2)+"x efectivo":""],
+    ["Margen",po?B(po.margen):"—"],
+    ["Libre en futuros",B(cu.libre)],
+    ["Afuera del exchange",B(cp.afuera)]];
+  $("bK").innerHTML=K.map(x=>`<div class="card k"><div class="l">${x[0]}</div><div class="v ${x[2]||""}">${x[1]}</div>${x[3]?`<div class="s">${x[3]}</div>`:""}</div>`).join("");
+  const resto=cp.resd?"puesto":"en espera (entra a "+P(pr.rt,0)+" de la liquidación o menos"+(fo.dist!=null?"; ahora "+P(fo.dist):"")+")";
+  $("bCarg").innerHTML=cp.activo?`<ul class="lst">
+    <li><b>Cargador 1</b> (${pr.B1} balas a ${pr.lev}x, ${B(cp.c1)}): ${u[0]}/${pr.B1} usadas</li>
+    <li><b>Cargador 2</b> (reserva de margen, ${B(cp.r)}): mitad ${cp.ini_puesta?"puesta":"pendiente"} · resto ${resto}</li>
+    <li><b>Cargador 3</b> (sólo margen con ROE &lt; −10 %, ${B(cp.c2)}): ${u[1]}/${pr.B2} usadas${cp.c2_debe>2e-6?" · falta depositar "+B(cp.c2_debe,5):""}</li>
+    <li>Capital al empezar la campaña: ${B(cp.Wc)}</li></ul>`:'<span class="mu">Sin campaña abierta.</span>';
+  $("bSen").innerHTML=sg?tabla([["",x=>x[0]],["",x=>x[1],"n",x=>x[2]||""]],[
+    ["Vela",String(sg.t).slice(0,16)+" UTC"],
+    ["Régimen semanal",sg.regimen?"alcista":"apagado",sg.regimen?"pos":"neg"],
+    ["RSI(2) de 4 h (entra con ≤ 15)",N(sg.rsi,1)],
+    ["Cierre / SMA"+pr.ma,N(sg.cierre)+" / "+N(sg.sma)+" · "+(sg.sobre?"arriba":"abajo")],
+    ["Momento 90 días",(sg.momento?"positivo":"negativo")+" ("+PS(sg.ret90)+")",sg.momento?"pos":"neg"],
+    ["Señal de entrada",sg.entrada?"sí":"no"],
+    ["Cruzó sobre la SMA"+pr.ma+" en la campaña",cp.activo?(cp.rec?"sí: cierra si vuelve a cerrar abajo":"no todavía"):"—"]]):'<span class="mu">Todavía sin señal.</span>';
+  chart("cB10",{type:"line",data:{labels:d.serie.t,datasets:[{label:"Capital BTC",data:d.serie.btc,borderColor:"#d97706",pointRadius:0,borderWidth:2,yAxisID:"y"},
+    {label:"Capital USD",data:d.serie.usd,borderColor:"#64748b",pointRadius:0,borderWidth:1,yAxisID:"y1"}]},
+    options:{...base,plugins:{legend:{display:true}},scales:{x:base.scales.x,y:{position:"left"},y1:{position:"right",grid:{drawOnChartArea:false}}}}});
+  $("tBDec").innerHTML=tabla([["#",x=>x.id],["Hora (UTC)",x=>x.fecha],["Tipo",x=>x.tipo],["Estado",x=>`<span class="tag">${x.estado}</span>`],["Decisión",x=>esc(x.resumen),"w"],["Resultado",x=>esc(x.resultado||""),"w"]],d.decisiones);
+  $("tBOps").innerHTML=tabla([["Hora (UTC)",x=>x.fecha],["Tipo",x=>x.lado],["Contratos",x=>x.lado=="margen"?"":N(x.cantidad),"n"],["Precio",x=>N(x.precio,1),"n"],["BTC de margen",x=>x.btc==null?"":N(x.btc,5),"n"],["Motivo",x=>esc(x.motivo)],["",x=>x.modo=="papel"?'<span class="tag">papel</span>':""]],d.operaciones);
+  $("tBCam").innerHTML=tabla([["Inicio",x=>String(x.inicio).slice(0,16)],["Fin",x=>String(x.fin).slice(0,16)],["Resultado en BTC",x=>PS(x.res),"n",x=>C(x.res)]],d.resultados.slice().reverse());
+  $("tBInc").innerHTML=tabla([["Hora (UTC)",x=>x.fecha],["Nivel",x=>x.nivel,"",x=>x.nivel],["Tipo",x=>x.tipo],["Mensaje",x=>esc(x.mensaje),"w"],["",x=>x.resuelta?"resuelta":""]],d.incidencias);
+  }catch(e){console.error(e);$("bAviso").innerHTML=`<div class="card avi ko">No pude leer el estado de 30 balas (${esc(e.message)}).</div>`}
+}
+async function ciclo(){try{await todo();await pat()}catch(e){console.error(e)}if(tab=="balas10")b10()}
 ciclo();setInterval(ciclo,60000);
 </script>
 </body>

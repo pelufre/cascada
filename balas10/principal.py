@@ -1,5 +1,6 @@
 """Servicio de 30 balas 10x: ciclo al cierre de cada vela de 4 h, control de margen cada 15 minutos, confirmaciones y
-comandos por Telegram (bot propio) y un /salud local para el healthcheck de Docker.
+comandos por Telegram (bot propio), una foto de la cuenta cada 2 minutos para la web del Sistema 3 y un /salud local
+para el healthcheck de Docker.
 
     python -m balas10.principal
 """
@@ -23,6 +24,7 @@ from .motor import Motor, ahora, btc
 VERSION = "1.0.0"
 log = logging.getLogger("balas10")
 CONTROL_MIN = 15
+FOTO_S = 120          # cada cuánto se guarda la foto de la cuenta que muestra la web del Sistema 3
 
 AYUDA = """30 balas 10x — comandos:
 /estado – posición, liquidación, balas, reserva y señal
@@ -137,9 +139,23 @@ class Servicio:
                              (int(time.time() * 1000), v["total_usd"] or 0, 0.0, v["total_btc"], v["precio"],
                               (v["pos"]["contratos"] / v["total_usd"]) if v["pos"] and v["total_usd"] else 0.0, 0.0))
                 self.db.set("latido_control", time.time())
+                self.foto(v)
             except Exception as e:
                 log.warning("control: %s", e)
                 self.db.incidencia("media", "control", str(e)[:300])
+
+    def foto(self, v=None):
+        """Guarda posición y cuenta para la pestaña «30 balas» de la web del Sistema 3, que lee esta base."""
+        with self.cerrojo:
+            try:
+                v = v or self.motor.valuar()
+                u1, u2 = self.motor.usadas(v["s"])
+                self.db.set("foto", dict(ts=time.time(), pos=v["pos"], cuenta=v["cuenta"], precio=v["precio"],
+                                         total_btc=v["total_btc"], total_usd=v["total_usd"], balas=[u1, u2],
+                                         p={k: self.motor.p.get(k) for k in ("B1", "B2", "lev", "ma", "rt")},
+                                         modo=self.cfg.modo, confirmar=self.cfg.confirmar))
+            except Exception as e:
+                log.warning("foto: %s", e)
 
     # ------------------------------------------------------------------------------------------ comandos
     def comando(self, nombre, args):
@@ -219,7 +235,7 @@ class Servicio:
         pendiente = ultimo_cierre()
         if hecho.get("vela") == str(pendiente) or ahora() - pendiente > pd.Timedelta(hours=3):
             pendiente = None
-        ultimo_control = 0.0
+        ultimo_control = ultima_foto = 0.0
         while True:
             self.db.set("latido", time.time())
             self.atender()
@@ -230,7 +246,9 @@ class Servicio:
             elif listo and (self.db.get("ultimo_ciclo") or {}).get("vela") != str(t):
                 self.ciclo_con_reintentos(t)
             if time.time() - ultimo_control > CONTROL_MIN * 60:
-                self.control(); ultimo_control = time.time()
+                self.control(); ultimo_control = ultima_foto = time.time()
+            elif time.time() - ultima_foto > FOTO_S:
+                self.foto(); ultima_foto = time.time()
             time.sleep(2)
 
 

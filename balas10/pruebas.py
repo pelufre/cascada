@@ -213,9 +213,42 @@ def prueba_servicio_confirmacion():
     ok(abs(s.motor.st["afuera"] - 0.1) < 1e-12, "servicio: /afuera")
 
 
+def prueba_web_sistema3():
+    import json
+    from pathlib import Path
+
+    from sistema3 import web as W
+
+    from .principal import Servicio
+    vacio = tempfile.mkdtemp()
+    W.DATOS = Path(vacio)
+    ok(W.datos_balas10() == dict(hay=False), "web: sin base de 30 balas no falla")
+    tmp = tempfile.mkdtemp()
+    cfg = C.Config(modo="real", confirmar=False)
+    db = Base(os.path.join(tmp, "balas10_real.db"))
+    px = {"v": 80000.0}
+    b = PapelInverso(db, lambda: px["v"], btc=1.0, desliz=0.0, com=0.0)
+    s = Servicio(cfg=cfg, bolsa=b, fuente=None, ruta_db=os.path.join(tmp, "balas10_real.db"), telegram=TG())
+    s.motor.senales = lambda t: senal(dia=False, entrada=True)
+    s.ciclo(pd.Timestamp("2026-10-12 04:00"))
+    s.control()
+    px["v"] = 76000.0
+    s.foto()
+    W.DATOS = Path(tmp)
+    d = W.datos_balas10()
+    f, p = d["foto"], b.posicion()
+    ok(d["hay"] and d["campana"]["activo"] and f["pos"]["contratos"] == p["contratos"], "web: lee la campaña y la posición")
+    ok(abs(f["dist"] - (p["marca"] / p["liq"] - 1)) < 1e-9 and f["roe"] < 0 and f["resultado"] < 0, "web: distancia, ROE y resultado")
+    ok(f["balas"] == [1, 0] and f["confirmar"] is False and f["p"]["B1"] == 30, "web: balas y modo automático")
+    ok(len(d["serie"]["t"]) == 1 and d["decisiones"][0]["estado"] == "ejecutada", "web: serie de capital y decisiones")
+    ok(any(o["lado"] == "margen" and o["btc"] > 0 for o in d["operaciones"]), "web: aportes de margen en BTC")
+    ok(json.loads(json.dumps(W._limpio(d), default=str))["hay"], "web: respuesta serializable")
+
+
 def main():
     for f in (prueba_senales, prueba_adopcion_y_reserva, prueba_cargador2_afuera, prueba_salida_y_entrada,
-              prueba_recarga_con_ok, prueba_conciliacion, prueba_emergencia, prueba_servicio_confirmacion):
+              prueba_recarga_con_ok, prueba_conciliacion, prueba_emergencia, prueba_servicio_confirmacion,
+              prueba_web_sistema3):
         f()
     print(f"{len(OK)} comprobaciones OK")
     for x in OK:

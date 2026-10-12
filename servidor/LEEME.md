@@ -102,6 +102,11 @@ Comandos de Telegram: `/estado`, `/pendiente`, `/si ID`, `/no ID`, `/afuera X`, 
 Al depositar el cargador 3 (o parte) en FUTUROS, actualizar `/afuera` con lo que sigue afuera.
 Logs: `docker compose logs -f balas10`. Configuración: `config/balas10.yaml`.
 
+**Web:** la pestaña «30 balas» de la web del Sistema 3 muestra posición, liquidación, cargadores, señal, decisiones y
+órdenes. El bot guarda una foto de la cuenta cada 2 minutos en su base y la web la lee en sólo lectura (comparten
+`servidor/datos`). La pestaña es parte del servicio `sistema3`: para verla después de actualizar el código hay que
+reconstruir y reiniciar los dos (`docker compose up -d --build balas10 sistema3`).
+
 **En KuCoin no activar el "depósito automático de margen"** de la posición: el bot lo apaga si lo encuentra activo.
 
 Diferencias con el backtest: el capital entre campañas queda en BTC (el backtest lo tenía en USDT): suma exposición a
