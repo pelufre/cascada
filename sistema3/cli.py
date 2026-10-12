@@ -116,7 +116,7 @@ def prueba_transferencia():
     print("Futuros después:", b.patrimonio_futuros(), "· rutas:", b.ruta_ida and b.ruta_ida[1:], b.ruta_vuelta and b.ruta_vuelta[1:])
 
 
-def alinear(ejecutar=False, sin_ajustes=False):
+def alinear(ejecutar=False, sin_ajustes=False, ajustes_solo_compra=False):
     s = _servicio()
     m = s.motor
     from .principal import ultimo_cierre
@@ -125,6 +125,8 @@ def alinear(ejecutar=False, sin_ajustes=False):
     P = m.plan_alineacion(hoy)
     if sin_ajustes:                                   # sólo entradas y salidas de FR20, sin reajustar pesos
         P["pasos"] = [x for x in P["pasos"] if not x[3].startswith("ajuste")]
+    if ajustes_solo_compra:                           # reparte un aporte: los ajustes sólo compran, no venden
+        P["pasos"] = [x for x in P["pasos"] if not (x[3].startswith("ajuste") and x[0] == "vender")]
     print(m.texto_alineacion(P))
     if not ejecutar:
         print("\n(Sólo el plan: no se envió ninguna orden. Para ejecutarlo: alinear --ejecutar)")
@@ -144,6 +146,22 @@ def alinear(ejecutar=False, sin_ajustes=False):
         print("\n" + s.texto_estado())
     finally:
         s.db.set("pausado", False)
+
+
+def depositos(dias=3):
+    """Depósitos y transferencias de USDT de los últimos días en KuCoin (para registrar aportes)."""
+    s = _servicio()
+    ex = getattr(s.bolsa, "spot", None)
+    if ex is None:
+        print("sólo en modo real"); return
+    desde = int((time.time() - dias * 86400) * 1000)
+    for nombre, f in (("depósitos", lambda: ex.fetch_deposits("USDT", desde)), ("transferencias", lambda: ex.fetch_transfers("USDT", desde))):
+        try:
+            for d in f():
+                print(nombre, pd.to_datetime(d.get("timestamp"), unit="ms"), d.get("amount"), d.get("status"), d.get("fromAccount", ""), d.get("toAccount", ""))
+        except Exception as e:
+            print(nombre, "no disponible:", str(e)[:150])
+    print("Último capital registrado:", s.db.filas("SELECT ts, total FROM patrimonio ORDER BY ts DESC LIMIT 1"))
 
 
 def reparar_entradas(desde="2026-10-09 04:00"):
@@ -177,10 +195,12 @@ def main(argv=None):
         telegram_chat()
     elif c == "aporte":
         aporte(a[1], " ".join(a[2:]))
+    elif c == "depositos":
+        depositos()
     elif c == "reparar-entradas":
         reparar_entradas()
     elif c == "alinear":
-        alinear("--ejecutar" in a, "--sin-ajustes" in a)
+        alinear("--ejecutar" in a, "--sin-ajustes" in a, "--ajustes-solo-compra" in a)
     elif c == "prueba-transferencia":
         prueba_transferencia()
     else:
