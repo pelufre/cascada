@@ -67,7 +67,9 @@ capital de la campaña = BTC en futuros + BTC declarado afuera; cargador 1 = 40 
 que entran cuando el 1 está agotado y el ROE de la campaña es < −10 %, y van **enteras a margen**). Entrada: régimen semanal + RSI(2) 4h ≤ 15 + momento 90 d. Salida: cruce bajo la
 SMA80 4h (después de haber estado arriba) o régimen apagado al cierre diario. Señales con velas de Binance BTCUSDT.
 
-**Qué hace solo:** todos los aportes de margen (cargador 2, balas sólo-margen, cargador 3, emergencia a ≤ 5 % de la
+**Modo por defecto: todo automático** (`confirmar: false` en `config/balas10.yaml`): abre, recarga y cierra sin preguntar
+y avisa por Telegram después de cada operación. Con `confirmar: true`:
+**qué hace solo:** todos los aportes de margen (cargador 2, balas sólo-margen, cargador 3, emergencia a ≤ 5 % de la
 liquidación con todo el BTC libre). **Qué pregunta (`/si ID`):** abrir, comprar contratos de una recarga y cerrar.
 Si el cargador 3 está afuera, avisa cuánto depositar en FUTUROS; al llegar el depósito lo agrega solo (control cada 15 min).
 
